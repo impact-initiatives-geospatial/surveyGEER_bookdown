@@ -1,0 +1,480 @@
+
+# Remote Sensing Extraction Report (NGA)
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = T,
+                      warning = F,
+                      message = F,
+                      eval=F,
+                      fig.fullwidth=TRUE,out.width = "100%")
+options(tidyverse.quiet = TRUE)
+```
+
+```{r, eval=T, echo=F}
+
+# quick and dirty functions to do the job.
+cat_pct <- function(df,indicator){
+  df |>
+    filter(name==indicator) |>
+    filter(!is.na(value)) |>
+    group_by(value) |>
+    summarise(count=n()) |>
+    ungroup() |>
+    mutate(pct=round(100*(count/sum(count)) ,1)) |>
+    arrange(desc(pct))
+
+}
+
+plot_cat_pct <-  function(df,indicator,title){
+  df |> 
+    cat_pct(indicator=indicator) |> 
+     ggplot(aes(x=reorder(value,pct), y=pct))+
+    geom_col(fill="#D2CBB8", color= "#58585A")+
+    ggtitle(label = title)+
+    coord_flip()+
+    # theme_bw()+
+    theme(axis.title.y = element_blank(),
+          axis.text.y =element_text(angle=0)
+
+    )
+}
+
+```
+
+## Intro
+
+This chapter is just and example of one of the Preliminary RS Extraction Reports that was provided to the country offices in addition to the RS data in tabular format (1 row per HH). The format has been adapted slightly to fit into this book format. The objective of the  report is to help the country team analysts understand how to interpret the RS indicators.
+
+After reading  through the report the country team analyst should analyze the RS indicators provided against relevant survey variables/indicators. As the RS indicators have been added to the HH data as new columns with the `rs_` prefix analysis can be carried out with the same tools as typical survey analysis (i.e `{survey}`,`{srvyr}`,`{hypegrammar}`,`{butteR}`).
+
+The analyst should explore indicators in the data set that might be effected by climatic, environmental, or geographic drivers. At the end of the report we  offer some suggestions which might make more sense after reviewing the RS variables here.
+
+
+```{r, eval =F, echo=F}
+library(here,quietly = T)
+library(targets,quietly = T)
+library(leaflet,quietly = T)
+library(sf,quietly = T)
+library(tidyverse)
+library(thematic)
+
+
+tar_load_everything()
+nga_rs_numeric <- nga_rs_indicators_long$numeric 
+nga_rs_categorical <-nga_rs_indicators_long$categorical
+
+```
+
+```{r, eval=T, echo=F}
+library(tidyverse)
+```
+
+## Overview map
+
+Below is the spatial distribution of the interviews carried out.
+
+```{r, eval=F, echo=F}
+make_overview_hex_map(sf_geom = nga_pt_data_clean,
+                      country_code = "col",
+                      hex_size = 75000)
+```
+
+
+\@ref(fig:map-ngaCoverage)
+
+```{r map-ngaCoverage, fig.cap='Overview map of NGA assessment coverage',eval=T, echo=F, results="asis"}
+knitr::include_graphics(here::here("man/figures/nga_msna_hexmap.png"))
+```
+
+```{r, echo=F}
+# this is how the data was extracted form the `surveyGEER` repo to use in this report
+nga_extract_report <-  list()
+nga_extract_report$nga_numeric <-  nga_rs_numeric
+nga_extract_report$nga_categorical <-  nga_rs_categeorical
+# write_rds(nga_extract_report,"../surveyGEER_bookdown/nga_extraction_report_dat.rds")
+```
+
+```{r echo=F, eval=T}
+nga_extract_report <- read_rds("nga_extraction_report_dat.rds")
+nga_rs_numeric <- nga_extract_report$nga_numeric
+nga_rs_categorical <- nga_extract_report$nga_categorical
+```
+
+
+
+```{r , echo=F, eval=T}
+numeric_pct_na <- nga_rs_numeric |> 
+# nga_rs_numeric |> 
+  group_by(name) |> 
+  summarise(count=n(),
+            count_na= sum(is.na(value)),
+            `% NA` = round((count_na/count)*100,1)
+            ) |> 
+  arrange(desc(`% NA`)) |>
+  filter(
+    # name!="rs_NDVI_Apr2022",
+         !str_detect(name,"cloud_fraction_mean")) |> 
+  mutate(name=case_when(str_detect(name,"Npp")~"NPP",
+                        str_detect(name,"rx")~"Rainfall intensity", 
+                        str_detect(name,"spi")~"SPI",
+                        str_detect(name, "SO2|NO2")~"Air quality",
+                        str_detect(name,".+Mar.+$")~"MODIS March (VCI + NDVI)",
+                         str_detect(name,".+May.+$")~"MODIS May (VCI + NDVI)",
+                         str_detect(name,".+Apr.+$")~"MODIS April (VCI + NDVI)",
+                         str_detect(name,"healthcare|city")~"Accessibility",
+                         
+                         str_detect(name,"dist")~"Distance Coast",
+                         str_detect(name,"col_climate")~"col_climate_risk shapefile",
+                        TRUE~ name
+                         
+  )
+         ) |> 
+  group_by(name) |> 
+  summarise(count= unique(count ),
+            count_na=unique(count_na),
+            `% NA`= unique(`% NA`)) |> 
+  arrange(desc(count_na)) 
+```
+
+
+```{r , echo=F, eval=T}
+numeric_top_na_cat<- numeric_pct_na |> slice(1) |> pull(name)
+numeric_top_na_val<- numeric_pct_na |> slice(1) |> pull("% NA")
+
+```
+
+## RS Quality Isses
+
+A brief summary of quality issues in the RS extraction is provided.
+
+### Numeric RS variables
+
+Below a table \@ref(tab:table-numericNAtbl) shows the % of values that returned null/NA values for numeric indicators.
+
+- `r numeric_top_na_cat` is the highest with `r numeric_top_na_val` % NA. This is likely due to cloud cover issues. Recommend leaving the NA values in the data set and excluding from subsequent analysis
+- All the rest had no NA values
+
+```{r table-numericNAtbl, echo=F, eval=T, results="asis"}
+numeric_pct_na|> knitr::kable(caption = "% NA per umeric indicator")
+```
+
+
+### Categorical RS Variables
+
+Below a table shows the % of values that returned null/NA values for categorical indicators. Other than the land form classifications the rest of the data was obtained from auxiliary data sources provided by the team. 
+
+- auxiliary data set. The only auxiliary data set was the livelihood zones vector file. The NA values are likely due to edge effects or topology issues in the file.
+  + recommend leaving these values as NA and not including in subsequent analysis of these variables
+
+```{r,eval=T, echo=F}
+
+categorical_pct_na_all <- nga_rs_categorical |>
+  group_by(name) |> 
+  summarise(count=n(),
+            count_na= sum(is.na(value)),
+            `% NA` = round((count_na/count)*100,1)
+            ) |> 
+  arrange(desc(`% NA`)) |> 
+  mutate(
+    category= case_when(
+      str_detect(name,"nga\\.lz")~"Livelihood Zones",
+      str_detect(name,"_landforms$")~ "Landforms",
+      TRUE ~ name
+    )
+  ) 
+
+categorical_perc_na <- categorical_pct_na_all|> 
+  group_by(category) |> 
+  summarise(
+    across(.cols = c("count" ,"count_na", "% NA"),.fns = ~unique(.x))
+  )
+
+categorical_perc_na|> knitr::kable()
+```
+
+```{r, eval=F, echo=F}
+histos_by_category <- nga_rs_numeric |> 
+  group_split(category) |> 
+  map(~ggplot(.x,aes(x=value))+geom_histogram()+facet_wrap(~name))
+
+```
+
+## Remote Sensing Indicators
+
+### Standard Precipitation Index (SPI)
+- SPI [@mckee1993_spi] [@mckee1995_spi] is calculated from chirps rainfall data [@funk2015chirps]
+- It is an widely-used indicator to characterize drought at multiple time scales.
+- Here we have calculated it at 1, 3, 6,  9 , and 12 months (i.e `spi1`, `spi3`, etc...)
+
+Below I have copied directly from [Indianas Department of Natural Resources Web Page](https://www.in.gov/dnr/water/water-availability-use-rights/water-resource-updates/monthly-water-resource-summary/explanation-of-standard-precipitation-index-spi)
+
+**Interpretation of SPI at different time scales**
+
+- A **1-month SPI** typically compares well to the percent of normal precipitation for the month. However, as with other SPI time scales, it is actually considered to be a more accurate representation of monthly precipitation for a given location because the long-term precipitation record (over 30 years or more) is fitted to a probability distribution. It is then transformed into a normal distribution so that the median SPI for the location and period is zero; that is, half of the historical precipitation amounts are below the median and half are above the median. Positive SPI values indicate greater than median precipitation (i.e. wet conditions), and negative values indicate less than median precipitation (i.e. dry conditions). The 1-month SPI is a short-term value and during the growing season can be important for correlation of soil moisture and crop stress.
+
+- The **3-month SPI** provides a comparison of the precipitation over a specific 3-month period with the precipitation totals from the same 3-month period for all the years included in the historical record. In other words, a 3-month SPI at the end of February compares the December-January-February precipitation total in that particular year with the December-February precipitation totals of all the years. A 3-month SPI reflects short- and medium-term moisture conditions and provides a seasonal estimation of precipitation.
+
+- It is important to compare the 3-month SPI with longer time scales. A relatively normal 3-month period could occur in the middle of a longer-term drought that would only be visible at longer time scales. Looking at longer time scales would prevent a misinterpretation that any "drought" might be over.
+
+- The **6-month SPI** compares the precipitation for that period with the same 6-month period over the historical record. The 6-month SPI indicates medium-term trends in precipitation and is still considered to be more sensitive to conditions at this scale than the Palmer Index. A 6-month SPI can be very effective showing the precipitation over distinct seasons. Information from a 6-month SPI may also begin to be associated with anomalous streamflows and reservoir levels.
+
+ - The **9-month SPI** provides an indication of precipitation patterns over a medium time scale. Droughts usually take a season or more to develop. SPI values below -1.5 for these time scales are usually a good indication that fairly significant impacts are occurring in agriculture and may be showing up in other sectors as well. Some regions of the country may find that the pattern displayed by the map of the Palmer Index closely relates to the 9-month SPI maps. For other areas, the Palmer Index is more closely related to the 12-month SPI. The Palmer Index maps are updated each week, although the patterns usually do not change significantly. The SPI maps are updated at the end of each month.
+
+- A **12-month SPI** is a comparison of the precipitation for 12 consecutive months with the same 12 consecutive months during all the previous years of available data. The SPI at these time scales reflect long-term precipitation patterns. Because these time scales are the cumulative result of shorter periods that may be above or below normal, the longer SPIs tend toward zero unless a specific trend is taking place.
+
+Chart Interpretation: 
+
+- these are histograms - the x-axis represent the SPI score for each of the specified time ranges (i.e spi1,spi3, spi6)
+- the suffix number on the end of the chart title represents the number of months the SPI was calculated over. Another way think about it : `rs_May_spi3` is a comparison of this years `March-April-May` rainfall compared to all the years on record. Therefore values > 0 indicators more rain during that 3 month time period "than normal" and values < 0  indicatore less rainfall "than normal"
+- For SPI the historical baseline is calculated as all years on record (1981-present). This seems to be the [standard method](http://iridl.ldeo.columbia.edu/maproom/Global/Drought/Global/CPC_GOB/Analysis.html#tabs-2) for the SPI calculations. 
+
+
+```{r, eval=T, echo=F, results="asis"}
+# limit <- nga_rs_numeric |> 
+#   filter(category=="Standard Precipitation Index") |> 
+#   pull(value) |> abs() |> max()*c(-1,1)
+# 
+# ggplot(example_data, aes(name, value, fill = value)) +
+#   geom_col() +
+#   scale_fill_distiller(type = "div", limit = limit)
+
+spi_df <- nga_rs_numeric |>
+  filter(category == "Standard Precipitation Index") |>
+  mutate(name = forcats::fct_relevel(
+    name,
+    c(
+      "rs_May_spi1",
+      "rs_May_spi3",
+      "rs_May_spi6",
+      "rs_May_spi9",
+      "rs_May_spi12"
+    )
+  ))
+
+nbins= 50
+plots_rse_nga <- spi_df |> 
+  ggplot(
+    aes(x=value, 
+        # fill=stat(1:nbins)
+        ))+
+  geom_histogram(bins=nbins, fill="#0067A9")+
+  # scale_fill_distiller(type = "div")+
+  facet_wrap(~name)
+```
+
+
+### Maximum Rainfall Events
+
+These charts display the maximum rain fall events for different rainfall duration over different time periods (from daily CHIRPS measurements [@funk2015chirps]. We have chosen to calculate Maximum 3 day, 5 day, and 10 day rainfall over 30, 60, and 90 days. To break it down further: all calculations were started `May 31`, for 30 day calculations we looked at the period from 01 May - May 31 and calculated and found the 3 day consecutive period with the most rainfall in that 30 day window.
+
+
+Chart Interpretation: 
+
+ - these are histograms - the x-axis represent the mm that fell in the maximum precip event and the y-axis is how many observations there were
+ - If you read across the charts horizontally the maximum event window changes from 3,5,10 days while the number of days that was looked at remains constant. Clearly the total mm of precipitation that fell over a 10 day precipitation record should tend to be more than those that fell over 3 days.
+ - If you read across vertically the maximum rain event stays constant while the number of days increases as you move down. Naturally if you increase the window for these calculations the number of mm should also increase.
+ 
+By combining rainfall amount (mm) with time we get a measurement of rainfall intensity. High intensity events might correlate with flooding indicators.
+ 
+
+```{r , eval=T, echo=F, results="asis"}
+nga_rs_numeric |> 
+  filter(str_detect(category,"Precipitation Intensity"))|>
+  mutate(name= forcats::fct_relevel(name,c( "rs_rx3d_30d_may",
+                                            "rs_rx5d_30d_may",
+                                            "rs_rx10d_30d_may",
+                                            "rs_rx3d_60d_may",
+                                            "rs_rx5d_60d_may",
+                                            "rs_rx10d_60d_may",
+                                            "rs_rx3d_90d_may",
+                                            "rs_rx5d_90d_may",
+                                            "rs_rx10d_90d_may"))) |> 
+  
+  ggplot(aes(x=value))+
+  geom_histogram(bins=75,
+                 fill="#003F65" # reach med blue
+                 )+
+  # scale_x_log10()+
+  facet_wrap(~name)
+
+```
+
+
+### MODIS Vegetation Indicators
+
+MODIS 16 day (250 m) composites were used as the basis for these analyses.
+
+- NDVI Z Score (or NDVI Standard Score): # of deviations from normal based on the historical record.
+- VCI (vegetation condition index): 
+- Median percent normal (not shown)
+
+#### NDVI Z score - Pre Assessment
+
+Lets take a look at the distribution of Z scores. Any values above 0 indicate locations where the vegetation appears healthier "than normal" (2000-2015) for that particular month. Values below zero indicate less healthy "than normal" conditions.
+
+This indicator shows a very nice normal distribution and is prime candidate for `logistic regression`. Should look in more detail outliers which might need to be treated or excluded.
+
+```{r, eval=T, echo=F, resuts="asis",fig.fullwidth=TRUE}
+
+nga_rs_numeric |> 
+  filter(str_detect(name,"z_score")) |> 
+  ggplot(aes(x=value))+
+  geom_histogram(bins=75, fill="#72966E")+
+  facet_wrap(~name)
+
+  
+```
+
+Box-plots give another view of the distribution and make it easier to see these outlier values. Should treat these outliers with care, probably it makes sense to set a standard deviation threshold at which point to delete the outliers (set them to NA) for subsequent analysis. Outliers might be due to cloud issue (most likely in the more recent imagery)
+
+```{r, eval=T, echo=F, results="asis"}
+nga_rs_numeric |> 
+  filter(str_detect(name,"z_score"))  |> 
+  ggplot(aes(x= name,y=value,fill=name))+
+  geom_boxplot()+
+  theme(
+    axis.title.x = element_blank(),
+    axis.text.x= element_blank()
+  )
+
+```
+
+### NDVI Z-Score - Previous Growing Season
+
+Approximate main growing season dates were provided by the team: `20 June - 26 September`. Average NDVI was calculated over this time period at the pixel level for 2021. Standard deviation and mean/medians were also calculated over this time period/season throughout the the entire historical MODIS record including this season (2000-2021). With this information the NDVI Z score for the last major growing season prior to the assessment (2021) was calculated. Note: setting baselines is a bit subjective and there is no standard. Above we used 2000-2015 as a baseline while here we used 2000-2021 (historical start to time of interest). The framework for setting the baseline here is probably the one I have most commonly seen, but there are pros and cons of any of the methods. For now, this remains experimental and we can adjust baselines. However, the baseline should not have a huge affect on any major trends found.
+
+We recommend looking at this indicator with respect to food security, livelihoods, and any agricultural related indicators/questions.
+
+Below distribution of the average NDVI Z score over the 2021 major growing season.
+
+```{r,eval=T, echo=F, resuts="asis",fig.fullwidth=TRUE}
+nga_rs_numeric |> 
+  filter(str_detect(name,"ndvi_z_growing")) |> 
+  ggplot(aes(x=value))+
+  geom_histogram(bins=75, fill="#72966E")
+
+```
+
+
+
+### Vegetation Conditon Index (VCI)
+VCI is another vegetation index that is often used as a drought indicator. More information can be found [here](https://www.un-spider.org/advisory-support/recommended-practices/recommended-practice-drought-monitoring-using-vegetation)
+
+Below is a table which shows a common classification for VCI values [@ghaleb2015droughtvci]. I believe these classifications are based on the premise that the baseline/historical record includes the entire record up to the current time. Here the baseline is is only up to 2015. We may want to run again with the entire record. Nonetheless, the findings should not change a huge amount and relationships should still be investigated under this framework first
+
+```{r, eval=T, results="asis", echo=F}
+tibble::tribble(
+       ~Drought, ~Values,
+      "Extreme",   "<10",
+       "Severe",   "<20",
+     "Moderate",   "<30",
+         "Mild",   "<40",
+           "No",   ">=40"
+     ) |> 
+  knitr::kable()
+```
+
+Below is the distribution of VCI for the 
+
+```{r,eval=T, echo=F, resuts="asis",fig.fullwidth=TRUE}
+nga_rs_numeric |> 
+  filter(str_detect(name,"VCI")) |> 
+  mutate(value = value*100) |> 
+  ggplot(aes(x=value))+
+  geom_histogram(bins = 75,fill="#CCC562")+
+  facet_wrap(~name)
+
+```
+
+
+
+### Landform Geomorphology
+
+Below is the % distribution of your data for each landform category. The landforms were extracted from two different data sources: **ALOS** & **SRTM** [@theobald2015_srtm_landforms]. They are compared here to understand consistency. You can experiment with either.
+
+Do valleys show different results than slopes/ridges?
+
+```{r,eval=T, echo=F, resuts="asis"}
+
+landform_pcts<- bind_rows(
+nga_rs_categorical |> 
+  cat_pct(indicator = "rs_alos_landforms") |> 
+  mutate(parameter= "rs_alos_landforms") ,
+  
+nga_rs_categorical |> 
+  cat_pct(indicator = "rs_srtm_landforms") |> 
+  mutate(parameter= "rs_srtm_landforms") ,
+  
+)
+
+landform_pcts |> 
+  ggplot(aes(x=reorder(value,pct), y= pct, fill=parameter))+
+  geom_col(position="dodge") +
+  scale_y_continuous(breaks = c(5,10,15,20,25))+
+  coord_flip()+
+  # theme_bw()+
+  theme(
+    axis.title.y = element_blank()
+  )
+```
+
+
+### Accessibliity
+
+Below are the metrics on accessibility. They are all put together by oxford [@Weiss2018] [@Weiss2020].
+- Same research group made all 3 metrics, would recommend the 2018 [@Weiss2020] metrics as they are updates. 
+
+```{r,eval=T, echo=F, resuts="asis",fig.fullwidth=TRUE}
+nga_rs_numeric |> 
+  filter(str_detect(category,"^Health") )|> 
+  ggplot(aes(x=value))+
+  geom_histogram(
+    fill = "#F69E61", # reach orange
+    color= "black"
+  )+
+  scale_y_continuous(trans=scales::pseudo_log_trans(base = 10))+
+  # scale_x_log10()+
+  facet_wrap(~name)
+
+```
+
+### Auxiliary data sets
+
+```{r, eval=T, echo=F, resuts="asis",fig.fullwidth=TRUE}
+# need to fix
+categoricals_to_graph <- categorical_pct_na_all |> 
+  filter(`% NA`<50) |> 
+  filter(!str_detect(name,"landform")) |> 
+  pull(name)
+
+# 
+# categorical_lookup <- data.frame(current=categoricals_to_graph) |> 
+#   tidyr::separate(current, into=c("base","sub"),sep="\\." ,remove = F) |> 
+#   left_join(nga_local_layer_lookup(),by=c("base"="new_layer_name")) |> 
+#   mutate(layer.value= paste0(layer_name,".",current))
+
+```
+
+Below are plots of the auxiliary data provided by the team. This interpretation is up to the office team. Below is the distribution of livelihood zones where the data was collected.
+
+```{r eval=T, echo=F, resuts="asis",fig.fullwidth=TRUE}
+nga_rs_categorical |> 
+  plot_cat_pct(indicator = "rs_nga.lzclass",title = "livelihood zone")
+
+nga_rs_categorical |> 
+  plot_cat_pct(indicator = "rs_nga.lznameend",title = "livelihood zone")
+
+# plots_categorical<- categoricals_to_graph |> 
+#   purrr::map(
+#   ~nga_rs_categorical |>
+#     plot_cat_pct(indicator = .x,title = .x)  
+#   )
+# 
+# plots_categorical |> 
+#   walk(~print(.x))
+
+```
+
+

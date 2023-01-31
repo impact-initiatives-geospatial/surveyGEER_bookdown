@@ -1,0 +1,88 @@
+```{r}
+knitr::opts_chunk$set(
+  echo = T,
+  warning = F,
+  message = F,
+  eval=F,
+  fig.fullwidth = TRUE, out.width = "100%"
+)
+```
+# Urban Growth Somalia
+
+I have not yet had time to translate this into R-code, but here is some python code adapted from the [GEE Introduction to Dynamic World (Part 3) - Exploring Time Series](https://developers.google.com/earth-engine/tutorials/community/introduction-to-dynamic-world-pt-3)[@brown2022dynamic]. This can be entered directly into `pyqgis` inside `QGIS`. Here I have split up the code into chunks for annotation, but when copyin into pyqgis you should copy all the code into one script:
+
+
+## Set Up
+
+- import `ee` and `ee_plugin` libraries
+- load Google Dynamic World as `dw` and select the `built` band
+- create and AOI geometry
+- define the years of interest for comparison
+- `beforeStart`, `beforeEnd`, `afterStart`, `afterEnd` are all created grammatically from the years of interest
+- the dynamic world (dw) Image Collection is then filtered and a  composite creating using the `mean` pixel statistic based on these dates
+
+```{python }
+
+import ee
+from ee_plugin import Map
+
+dw = ee.ImageCollection('GOOGLE/DYNAMICWORLD/V1').select('built')
+
+geometry = ee.Geometry.Polygon(
+        [[[42.64822546374793, 3.6619838709757198],
+          [42.64822546374793, 1.5219665932805257],
+          [46.14187780749793, 1.5219665932805257],
+          [46.14187780749793, 3.6619838709757198]]])
+
+beforeYear = 2016
+afterYear = 2021
+
+beforeStart = ee.Date.fromYMD(beforeYear, 1, 1)
+beforeEnd = beforeStart.advance(1, 'year')
+
+afterStart = ee.Date.fromYMD(afterYear, 1, 1)
+afterEnd = afterStart.advance(1, 'year')
+
+beforeDw = dw.filterDate(beforeStart, beforeEnd).mean()
+afterDw = dw.filterDate(afterStart, afterEnd).mean()
+```
+
+The `built` band give probability values that a pixel is urban. Therefore we can set thresholds to classify the pixel as urban or not. In this example we say a probability less that 0.2 is not urban and a probability greater than 0.5 is urban. This thresholds are just used for illustrative purposes and defining an accurate thresholds is a more complex process. However, using these thresholds we can:
+
+- classify pixels that are urban in the `after` (2022) Image  by masking pixels > 0.5
+- classify newly urbanized (`newUrban`) pixels by finding any area where the before date was less than 0.2 and the build band of the after Image is greater than 0.5.
+
+
+```{python}
+# Select all pixels that are
+# < 0.2 'built' probability before
+# > 0.5 'built' probability after
+
+newUrban = beforeDw.lt(0.2).And(afterDw.gt(0.5))
+overlap_urban =afterDw.gt(0.5)
+
+```
+
+
+- set the visualization parameters and add them to the map
+```{python}
+changeVisParams = {"min": 0, "max": 1, "palette": ['white', 'red']}
+urbanVisParams = {"min": 0, "max": 1, "palette": ['white', 'yellow']}
+
+Map.addLayer(newUrban.selfMask().clip(geometry), changeVisParams, 'New Urban (Masked)')
+Map.addLayer(overlap_urban.selfMask().clip(geometry), urbanVisParams, 'Urban (Masked)')
+```
+
+Using these two layers we can easily make the maps below.  Figure \@ref(fig:map-urbGrowthMog) show's urban area in Mogadishu with orange color representing areas that have been urbanized since 2016.
+
+```{r map-urbGrowthMog,fig.cap='Urban growth detected in Mogadishu Somalia from 2016 to 2022' , echo=F,eval=T, results="asis"}
+knitr::include_graphics(path = "man/figures/urban_growth_mogadishu.png")
+```
+
+
+Figure \@ref(fig:map-urbGrowthBaidoa) shows the same map, but of Baidoa Somalia.
+
+```{r map-urbGrowthBaidoa, fig.cap='Urban growth detected in Baidoa Somalia from 2016 to 2022' ,echo=F, eval=T, results="asis"}
+knitr::include_graphics(path = "man/figures/urban_growth_baidoa.png")
+```
+

@@ -1,0 +1,215 @@
+
+
+```{r setup_urbanmask, include=FALSE}
+knitr::opts_chunk$set(
+  echo = T,
+  warning = F,
+  message = F,
+  fig.fullwidth = TRUE, out.width = "100%"
+)
+options(tidyverse.quiet = TRUE)
+```
+
+# Urban Masking for Environmental Monitoring
+
+## Intro & Problem
+
+Urbanized/built up land cover classes pose several unique challenges for remote sensing. In our case they complicate our understanding when attempting to assess vegetative health metrics and link those metrics to communities. In many cases, the communities we are interested in should be considered rural, but HH locations fall on land that has been cleared and built-up (i.e roads, structures, other infrastructure). 
+
+**Problem Statement:** 
+
+- We want to use remote sensing to monitor environmental conditions affecting communities/villages of interest.
+- Most commonly we receive point or polygon data representing the population/village/community.
+- Often these spatial data are located on built-up areas.
+- Certain types of environmental/climatic monitoring, like rainfall monitoring, is not affected by built-up land cover types. However, vegetative monitoring/anomaly detection may not make sense over urbanized pixels. 
+- Vegetative health of areas directly around the community are likely to have more impact on various living conditions of the community as these are the areas where natural resources are grown/harvested
+- We want to monitor these conditions for thousands of villages so we need a solution that can be scaled up.
+
+
+
+```{r urb_setup_show, eval =F, echo=T}
+library(surveyGEER)
+library(tidyrgee)
+library(rgee)
+library(tidyverse)
+ee_Initialize(quiet = T)
+```
+
+```{r urb_setup_hide, eval =T, echo=F}
+library(surveyGEER)
+library(tidyrgee)
+library(rgee)
+library(tidyverse)
+```
+
+## Data Sources/Processing
+
+### Land Use Land Cover
+
+There are a variety of global land use land cover data sets available. Some of the most commonly used include: a. Dynamic World (Google)[@brown2022dynamic], b. ESA WorldCover [@zanaga2021esa], c. ESRI 2020 [@karra2021global]. They have different strengths and weaknesses, but for reasons discussed in Chapter X as well as arguments made by Venteer et al., 2020 [@venter2022global], ESA WorldCover seems like a good starting place for us.
+
+Let's look at the `ESA World Cover` classification for a rural town in Northern Nigeria. If you add satellite imagery to the background (click layers button and check "Esri.WorldImagery") it is apparent that the LULC classification does a decent job classifying built-up areas. The rest of the categories are less clearly accurate
+
+```{r, eval=F, include=T, echo=T}
+# set aoi as rural town
+rural_town <- ee$Geometry$Point(list(5.501897, 13.12175))
+
+# load in landcover
+esa_ic <- ee$ImageCollection("ESA/WorldCover/v100")
+esa_img <- ee$Image(esa_ic$first())$rename("esa_lulc_10m")
+
+# grab colors/labels for legend
+esa_color_table <- ee_landcover_lookup(landcover = "esa")
+esa_labels <- esa_color_table$category
+esa_colors <- esa_color_table$hex
+
+# create viz
+vis_esa <- list(
+  min = 09,
+  max = 110,
+  palette = esa_colors,
+  values = esa_labels,
+  opacity = 0.5
+)
+
+
+
+# center map
+Map$centerObject(rural_town, 14)
+
+# add layers and legend
+m_esa <- Map$addLayer(esa_img, vis_esa, "ESA Land Cover")
+esa_legend <- Map$addLegend(vis_esa, name = "ESA Legend", color_mapping = "character")
+m_esa_with_leg <- m_esa + esa_legend
+
+# visualize
+m_esa_with_leg
+```
+
+```{r, eval=T,echo=FALSE, fig.align='center', out.width='100%'}
+knitr::include_graphics(here::here("man/figures/nga_esa_ruraltown_screenshot.png"))
+```
+
+Ifwe change the opacity and include a satellite image for the background it is apparent that the LULC classification does a decent job classifying built-up areas. The rest of the categories appear less accurate.
+
+```{r, eval=T,echo=FALSE, fig.align='center', out.width='100%'}
+knitr::include_graphics(here::here("man/figures/nga_esa_ruraltown_screenshot_sat_bg.png"))
+```
+
+
+### Vegetative Health Indicator
+
+Now let's visualize  `NDVI` in the same area. Below we display median NDVI values over the growing season from the MODIS Terra satellite. On top of the NDVI visualization we add just the "Urban/Built Up" component of the `ESA World Cover` layer. 
+
+
+
+```{r,eval=F}
+
+modis_ic <- ee$ImageCollection(get_modis_link("terra"))
+
+# mask clouds and scale ndvi
+modis_ic_masked <- cloud_scale_modis_ndvi(modis_ic, mask = "cloud&quality")
+# make tidyee
+ndvi_tidy <- as_tidyee(modis_ic_masked)
+
+# filter
+ndvi_growing_season <- ndvi_tidy |>
+  filter(date >= "2021-06-20", date <= "2021-09-26")
+
+ndvi_growing_season_median <- ndvi_growing_season |>
+  summarise(stat = "median")
+```
+
+
+
+```{r,eval=F}
+urban_built <- esa_img$updateMask(esa_img$eq(50))
+modis_ndvi_viz <- list(
+  min = 0,
+  max = 1.1,
+  palette = c("orange", "yellow", "green", "darkgreen")
+)
+
+map_ndvi <- Map$addLayer(ndvi_growing_season_median$ee_ob,
+  visParams = modis_ndvi_viz,
+  "ndvi growing"
+)
+
+map_ndvi_w_urban <- map_ndvi +
+  Map$addLayer(
+    urban_built, list(
+      min = 0,
+      max = 1,
+      palette = "red", opacity = 0.3
+    ),
+    "Urban Built"
+  )
+
+map_ndvi_w_urban
+```
+
+```{r, eval=T,echo=FALSE, fig.align='center', out.width='100%'}
+knitr::include_graphics(here::here("man/figures/nga_ndvi_w_ruraltown_screenshot.png"))
+```
+
+It is apparent that the pixels falling within the area classified as urban have lower NDVI values than the immediately surrounding areas. This document is static due to API credential limitations, but this difference in pixel values is even more clear when performing the visualization in real time and you can toggle layers on and off. 
+
+If you look at the satellite basemap above this makes sense.  The built-pu area  has more bare soil which has a lower NDVI than vegetation. While this is true, if we are interested in studying the conditions of the populations residing in the urban area, the vegetative health in the surrounding area may be more likely to impact there conditions as this is where most of the resources may be grown/harvested.
+
+## Solution
+
+- Mask the urban area from the NDVI layer
+  + below you can see the urban area masked from the NDVI image. The pixel values are set to null.
+  
+```{r,eval=F}
+ndvi_urban_masked <- ndvi_growing_season_median$ee_ob$updateMask(esa_img$neq(50))
+
+map_ndvi_masked <- Map$addLayer(ndvi_urban_masked,
+  visParams = modis_ndvi_viz,
+  "NDVI Growing Season (Urban Masked)"
+)
+
+map_ndvi_masked
+```
+
+```{r, eval=T,echo=FALSE, fig.align='center', out.width='100%'}
+knitr::include_graphics(here::here("man/figures/nga_ndvi_w_urban_mask.png"))
+```
+
+- Next we run a focal statistic (moving window calculation) that reclassifies each  pixel based on a provided number of nearest neighbors.
+  + In the below visualization we have run a `focal_median` statistic on the urban-masked NDVI Image using a 3 pixel (750 m) radius. As the urban areas were pre-masked none of the original NDVI values within the urban area were used in the calculation. The urban area where we are going extract our NDVI indicators from has now been filled with values that more closely approximate the areas around the urban zone than previously.
+
+```{r,eval=F}
+ndvi_urban_masked_focal_median <- ndvi_urban_masked$
+  focal_median(
+  radius = 3,
+  kernelType = "circle",
+  units = "pixels"
+)$
+  reproject(ndvi_tidy$ee_ob$first()$projection())
+
+
+map_ndvi_focal_median_w_mask <- map_ndvi + Map$addLayer(
+  ndvi_urban_masked_focal_median,
+  visParams = modis_ndvi_viz,
+  "NDVI Focal Median"
+) +
+  Map$addLayer(
+    urban_built, list(
+      min = 0,
+      max = 1,
+      palette = "red", opacity = 0.2
+    ),
+    "Urban Built"
+  )
+```
+
+```{r, eval=T,echo=FALSE, fig.align='center', out.width='100%'}
+knitr::include_graphics(here::here("man/figures/nga_ndvi_focal_median_w_urban_mask.png"))
+```
+
+## Discussion
+
+- The main subjective decisions in this process are within regards to the focal statistic: `kernelType` , `focal statistic`, and `radius` can all be adjusted for different reasons. For our purposes `radius` will most likely be the most important consideration. 
+- A larger radius will include more pixels in `focal statistic` and therefore create a smoother surface.
+

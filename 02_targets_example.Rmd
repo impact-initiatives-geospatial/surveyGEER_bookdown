@@ -1,0 +1,152 @@
+# RS Extraction Pipeline Example
+
+## Targets
+
+explain what `{targets}` is and how it heleps
+
+## Example 
+
+using colombia code as a placeholder to demonstrate the targets pipeline, but can choose a better one.
+```{r,eval = F, echo=T}
+
+ # Created by use_targets().
+# Follow the comments below to fill in this target script.
+# Then follow the manual to check and run the pipeline:
+#   https://books.ropensci.org/targets/walkthrough.html#inspect-the-pipeline # nolint
+
+# Load packages required to define the pipeline:
+library(targets)
+library(rgee)
+library(rlang)
+library(dplyr)
+
+
+rgee::ee_Initialize(drive=T)
+
+
+# library(tarchetypes) # Load other packages as needed. # nolint
+
+# Set target options:
+# tar_option_set(envir= getNamespace("surveyGEER"))
+tar_option_set(
+  packages = c("tidyverse",
+               "rgee",
+               "lubridate",
+               # "rstudioapi",
+               "here",
+               "tidyrgee",
+               "sf"
+               ),
+  # imports = "surveyGEER",
+  # envir = getNamespace("surveyGEER"),
+  # packages that your targets need to run
+  format = "rds" # default storage format
+  # Set other options as needed.
+)
+
+# tar_make_clustermq() configuration (okay to leave alone):
+options(clustermq.scheduler = "multiprocess")
+
+# tar_make_future() configuration (okay to leave alone):
+# Install packages {{future}}, {{future.callr}}, and {{future.batchtools}} to allow use_targets() to configure tar_make_future() options.
+
+# Load the R scripts with your custom functions:
+lapply(list.files("R", full.names = TRUE, recursive = TRUE), source)
+# source("other_functions.R") # Source other scripts as needed. # nolint
+# cntry_code <- c("col")
+
+# Replace the target list below with your own:
+# Colombia Targets
+list(
+
+# Colombia ----------------------------------------------------------------
+
+  tar_target(
+    name = col_pt_data_clean,
+    command = load_clean_col_assessement_points(country_code = "col")
+  ),
+  tar_target(
+    name=col_oxford_access,
+    command= extract_oxford_access_indicators(geom_sf = col_pt_data_clean,img_scale = 928)
+  ),
+  tar_target(
+    name= col_landforms,
+    command = extract_geomorph_landform_indicators(col_pt_data_clean,img_scale=90)
+  ),
+  tar_target(
+    name= col_landforms_reclassified,
+    command= recode_srtm_alos_categorical(df = col_landforms)
+  ),
+  tar_target(
+    name= col_chirps_rainfall_intensity,
+    command= extract_chirps_rain_intensity(geom_sf=col_pt_data_clean,from_when="2022-05-31")
+  ),
+  tar_target(
+    name= col_chirps_rainfall_intensity_prepped,
+    command= prep_rs_chirps_intensity_target(col_chirps_rainfall_intensity,moi=5)
+  ),
+  tar_target(
+    name= col_chirps_spi,
+    command= extract_spi_to_values(geom_sf=col_pt_data_clean,moi=5)
+  ),
+
+  tar_target(
+    name= col_npp,
+    command= extract_npp_indicators(geom_sf = col_pt_data_clean,img_scale = 500)
+  ),
+
+  tar_target(
+    # need to build in range to composte over for colombia... 1 month == too cloudy....3 months still 40 % clouds
+    # might be worth looking at 6 months and a year.
+    name= col_air_quality,
+    command= extract_s5p_air_quality(geom_sf = col_pt_data_clean,yoi=2022, moi=5, img_scale=111320)
+  ),
+  tar_target(
+    name= col_dist_to_coast,
+    command= extract_dist_to_coast(geom_sf=col_pt_data_clean,country_code = "col",pt_density = 100)
+  ),
+  tar_target(
+    name = col_prev_3mo_drought_modis_basea,
+    command = extract_monthly_modis_drought(geom_sf=col_pt_data_clean,
+                                            baseline_years = c(2000:2015),
+                                            moi = c(3, 4, 5),
+                                            yoi = c(2022),
+                                            scale = 250,
+                                            mask = "cloud&quality",
+                                            satellite = "terra",
+                                            TAC = T,
+                                            temporal_interpolation = T)
+  ),
+  tar_target(
+    name= col_prev_3mo_drought_modis_basea_prepped,
+    command = prep_rs_modis_target(col_prev_3mo_drought_modis_basea)
+  ),
+  tar_target(name= col_local_value,
+             command=extract_local_values_to_points(schema = "col",
+                                                    country_code = "col",
+                                                    geom_sf = col_pt_data_clean)
+  ),
+  tar_target(
+    name= col_local_value_merged,
+    command= merge_local_layers(col_local_value)
+  ),
+  tar_target(
+    name = col_rs_indicators_long,
+    command= format_rs_indicators_long(country_code = "col",
+                                       col_pt_data_clean,
+                                       col_chirps_rainfall_intensity_prepped,
+                                       col_prev_3mo_drought_modis_basea_prepped,
+                                       col_chirps_spi,
+                                       col_dist_to_coast,
+                                       col_landforms_reclassified,
+                                       col_oxford_access,
+                                       col_npp,col_air_quality,
+                                       col_local_value_merged
+    )
+  ),
+    tar_target(
+    name = col_rs_indicators_wide,
+    command= format_rs_indicators_wide(col_rs_indicators_long)
+  )
+)
+```

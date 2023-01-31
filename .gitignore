@@ -1,0 +1,14 @@
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+
+_book
+_bookdown_files
+_main.pdf
+*.rds
+/*.pdf
+_cache
+_site
+_main.*
+*.html

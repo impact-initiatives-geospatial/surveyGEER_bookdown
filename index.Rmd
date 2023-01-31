@@ -1,0 +1,42 @@
+--- 
+title: "Remote Sensing & Humanitarian Assessment Analysis"
+author: "Zack Arno & Matt Wencel"
+date: "`r Sys.Date()`"
+site: bookdown::bookdown_site
+documentclass: book
+bibliography: [references.bib,book.bib, packages.bib]
+# url: your book url like https://bookdown.org/yihui/bookdown
+# cover-image: path to the social sharing image like images/cover.jpg
+description: |
+  This is a minimal example of using the bookdown package to write a book.
+  The HTML output format for this example is bookdown::gitbook,
+  set in the _output.yml file.
+link-citations: yes
+github-repo: rstudio/bookdown-demo
+---
+
+# Welcome {-}
+
+Welcome to Remote Sensing & Humanitarian Assessment Analysis. Here we describe some of the current approaches to integrate remote sensing into humanitarian assessment data. While this book touches on Google Earth Engine, R, and Remote Sensing generally it neither a beginners guide or a comprehensive look at any of those topics. 
+
+This is an ongoing work and you can visit the books [GitHub Repository](safdad) for more details or if you want to contribute.
+is licensed under a <a rel="license" href="http://creativecommons.org/licenses/by-nc-sa/4.0/">Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License</a>.
+
+
+ is licensed under a [Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License](http://creativecommons.org/licenses/by-nc-sa/4.0/)
+
+The work discussed in this document is centralized in the Impact-Initiatives [Geospatial GitHub Repository](https://github.com/impact-initiatives-geospatial), with the majority being wrapped/packaged further into the [{surveyGEER}](https://github.com/impact-initiatives-geospatial/surveyGEER) package/sub repository.
+
+
+
+```{r echo=F,eval=T}
+bookdat <- readr::read_rds("bookdat.rds")
+```
+
+
+```{r include=FALSE}
+# automatically create a bib database for R packages
+knitr::write_bib(c(
+  .packages(), "bookdown", "knitr", "rmarkdown", "rgee", "tidyrgee","ISOweek","rgeoboundaries","sf","targets"
+), "packages.bib")
+```

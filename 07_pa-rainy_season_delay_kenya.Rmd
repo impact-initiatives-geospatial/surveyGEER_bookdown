@@ -1,0 +1,222 @@
+
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+
+
+```{r ken_rain_hide_setup,include=F, eval=T }
+library(surveyGEER)
+library(tidyverse, quietly)
+library(tidyrgee, quietly)
+library(rgee, quietly)
+library(sf, quietly)
+library(lubridate, quietly)
+```
+
+# Graphing Rainy Season Delay Compared to Historical
+
+This chapter will show some useful ways to extract and visualize rainfall data to a specific region. Here we will look look at the district of Turkana in Norther Kenya. However, we the user could supply any `sf POLYGON` of interest. Once the data is extracted to the zone we will transform the daily chirps rainfall data to weekly cumulative over the course of the year. We will do this for the year 2022 and compare it to the historical averages to get a sense of rainfall timing.
+
+## Libraries & Data
+
+```{r ken_rain_show_setup,include=T, eval =F }
+library(surveyGEER)
+library(tidyverse)
+library(tidyrgee)
+library(rgee)
+library(sf)
+library(lubridate)
+ee_Initialize()
+```
+
+
+- load chirps daily image collection and convert to tidyee format
+- We use `{rgeoboundaries}` [@R-rgeoboundaries] to extract a specific admin 2 in KEN (Turkana). However if you have a local file you can also just load it using the `{sf}` package [@R-sf] (`st_read()`)
+- cast `POLYGON` in case there are any `MULTIPOLYGON`s that could cause issues
+- select the minimal number of columns needed to identify the polygon you are extracting to. `GEE` has issues with certain column types like `LOGICAL`, so it's good to trim it down here.
+- extract data with `tidyrgee::ee_extract_tidy()` which has some convenience processes to make the data return in a user-friendly format [@R-tidyrgee]
+
+```{r,echo=T, include=T, eval= F}
+chirps <- ee$ImageCollection("UCSB-CHG/CHIRPS/DAILY")
+# bring in tidyrgee tidyee format
+chirps_tidy <- as_tidyee(chirps)
+
+ken_adm2 <- rgeoboundaries::geoboundaries(c("Kenya"), adm_lvl = 2)
+
+turkana <- ken_adm2 |>
+  filter(str_detect(shapeName, "TURK"))
+
+# cast to single poly
+turkana_poly <- st_cast(turkana, "POLYGON")
+
+# simplify file/rm col names
+turkana_poly <- turkana_poly |>
+  select(shapeName)
+
+# extraction - this part takes the longest
+chirps_daily_turkana <- chirps_tidy |>
+  ee_extract_tidy(y = turkana_poly, stat = "median", scale = 5500, via = "drive")
+```
+
+
+```{r, eval=T, include=F}
+chirps_daily_turkana <- bookdat$chirps_turkana
+```
+
+## Temporally filter data 
+
+- set up current data
+- set up baseline data
+
+```{r, eval=T}
+
+chirps_daily_turkana <- chirps_daily_turkana |>
+  mutate(
+    year = year(date),
+    month = month(date),
+    week = week(date)
+  )
+chirps_turkana2022 <- chirps_daily_turkana |>
+  filter(
+    year == 2022
+  )
+chirps_historical_turkana <- chirps_daily_turkana |>
+  filter(year <= 2021)
+
+```
+
+## Calculate cumulative precipitation
+
+- calculate cumulative weekly precipitation for historical baseline data
+- do the same for current data (2022 in this example)
+- _Note:_ when we `group_by(year,week)` we loose the date. Although the date is not completely necessary as we could plot weeks on the x-axis, it is convenient to have the date and I think it makes the plot easier to read. Therefore we add it back in using the `{ISOWeek}` package [@R-ISOweek]
+- Bind the historical and current data.frames together for graphing
+
+```{r, eval=T}
+historical_precip_weekly_accumulation <- chirps_historical_turkana |>
+  group_by(year, week) |>
+  summarise(
+    weekly_precip = sum(value)
+  ) |>
+  mutate(
+    cumulative_precip = cumsum(weekly_precip)
+  ) |>
+  group_by(week) |>
+  summarise(
+    cumulative_precip = mean(cumulative_precip),
+  ) |>
+  mutate(
+    date = ISOweek::ISOweek2date(paste0("2022", "-W", formatC(week, width = 2, flag = "0"), "-1")),
+    time_frame = "historical"
+  )
+
+weekly_cumulative_precip_2022 <- chirps_turkana2022 |>
+  group_by(week) |>
+  summarise(
+    weekly_precip = sum(value)
+  ) |>
+  mutate(
+    cumulative_precip = cumsum(weekly_precip)
+  ) |>
+  group_by(week) |>
+  summarise(cumulative_precip = max(cumulative_precip)) |>
+  select(week, cumulative_precip) |>
+  mutate(
+    time_frame = "2022",
+    date = ISOweek::ISOweek2date(paste0("2022", "-W", formatC(week, width = 2, flag = "0"), "-1"))
+  )
+
+historical_current <- bind_rows(weekly_cumulative_precip_2022, historical_precip_weekly_accumulation)
+```
+
+With some ggplot `r emo::ji("heart")` we can visualize the cumulative precipitation for both the current/year of interest and the historical time period in Figure \@ref(fig:plot-cumulativeprecip).
+
+
+
+
+
+```{r plot-cumulativeprecip,fig.cap= 'Cumulative precip graph provide a nice way to look at timing of rainfall', eval=T, results="asis",  fig.width=10,fig.height=6}
+
+historical_current |>
+  ggplot(aes(
+    x = date,
+    y = cumulative_precip,
+    color = time_frame,
+    group = time_frame
+  )) +
+  annotate("rect",
+    xmin = lubridate::ymd(c("2022-03-01")),
+    xmax = lubridate::ymd(c("2022-05-31")),
+    ymin = 0,
+    ymax = Inf,
+    alpha = 0.2,
+    fill = "red"
+  ) +
+  annotate("rect",
+    xmin = lubridate::ymd(c("2022-10-01")),
+    xmax = lubridate::ymd(c("2022-12-31")),
+    ymin = 0,
+    ymax = Inf,
+    alpha = 0.2,
+    fill = "red"
+  ) +
+  geom_path() +
+  scale_x_date(
+    date_breaks = "1 month", date_labels = "%b"
+  ) +
+  labs(y = "Cummulative Precipitation") +
+  ggtitle("Turkana Cumulative Precipiation",
+    subtitle = "MAM & OND Seasons Highlighted"
+  ) +
+  theme_bw() +
+  theme(
+    text = element_text(size = 10)
+  )
+```
+
+
+in Figure \@ref(fig:plot-cumulativeprecipzoom) we zoom in further to just look at the MAM season.
+
+```{r,plot-cumulativeprecipzoom, fig.cap='If we zoom in further the differenc in start of season rains becomes more apparent', eval=T,results="asis",  fig.width=10,fig.height=6}
+
+historical_current |>
+  filter(date >= "2022-03-01", date <= "2022-05-31") |>
+  ggplot(aes(
+    x = date,
+    y = cumulative_precip,
+    color = time_frame,
+    group = time_frame
+  )) +
+  annotate("rect",
+    xmin = lubridate::ymd(c("2022-03-01")),
+    xmax = lubridate::ymd(c("2022-05-31")),
+    ymin = 0,
+    ymax = Inf,
+    alpha = 0.2,
+    fill = "red"
+  ) +
+  geom_path() +
+  scale_x_date(
+    date_breaks = "1 month",
+    minor_breaks = "1 day",
+    date_labels = "%b"
+  ) +
+  labs(y = "Cummulative Precipitation") +
+  ggtitle("Turkana Cumulative Precipiation",
+    subtitle = "MAM Season"
+  ) +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90))
+```
+
+## Discussion
+
+TBD
+
+## References
+

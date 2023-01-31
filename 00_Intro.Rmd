@@ -1,0 +1,48 @@
+
+# Intro & Overview
+
+This document attempts to describe some of the global approaches done by IMPACT-Initiatives to integrate remote sensing (RS) techniques into analyses and products. IMPACT/REACH has been rapidly expanding its RS portfolio and various country teams are increasingly integrating RS into their products/ & analyses. This document does not dive into all of the  work being done by individual country teams, but rather focuses on global approaches and, in particular, the integration of RS into analysis of humanitarian needs assessments.
+
+The book describes a methodology developed for integrating remote sensing into humanitarian survey/assessment analysis and serves as a repository for use-cases, tutorials, templates, and methods. Chapters 1-5 focus on the methodology, while the rest showcase use-cases.
+
+`{surveyGEER}` is a project that was developed as an R package which hosts a variety of tools, templates, and even data processing pipelines. It was named after the initial intent to create methods to integrate analyses of HH survey data with remote sensing using Google Earth Engine (GEE) remote sensing in R. In actuality the package does not contain any processes or functions for analyzing complex survey data, but rather focuses on the remote sensing component and methods to bring the remote sensing sources directly into HH data for downstream analysis. 
+
+
+this document is organized into 3 main sections
+
+- Bringing RS to Survey Data
+- Case Studies/Templates
+
+## Current State of Work
+
+### Bringing RS into humanitarian assessments
+
+A key objective of this work was to explore a methodology for integrating remote sensing into assessment data sets. A methodology was developed for both household  and key informant (KI) level assessments. However, house hold level was the primary focus of this work. Remote sensing derived metrics/indicators were extracted into the the data sets of 6 REACH Multi-Sectoral Needs Assessments (MSNAs) and 4 KI level assessments that were part of the Humanitarian Situation Monitoring (HSM) validation study. The assessments included:
+
+**MSNAs**
+
+- Colombia (COL)
+- Haiti (HTI)
+- Iraq (IRQ)
+- Niger (NER)
+- Nigeria (NGA)
+- Somalia (SOM)
+
+**HSM**
+
+- South Sudan (SSD)
+- Burkina Faso (BFA)
+- Democratic Republic of Congo (DRC)
+- Central African Republic (CAR)
+
+The tabular MSNA assessment data sets with chosen remote sensing derived indicators were provided back to the country teams to integrate into subsequent contextual analyses along with an extraction report and code book to simplify and explain the remote sensing variables. The HSM data sets were shared with HQ analysts.
+
+Once the data and explanatory extraction report was provided, the country teams with the contextual expertise were given the responsibility of analyzing the provided environmental/climatic data against humanitarian conditions captured via field surveys. In the case of HSM data, HQ data analysts in the HSM department were given this responsibility.
+
+At the time of writing, regarding the MSNA analysis, little country level resources have been allocated for this step. Colombia appears to be the only country thus far to have begun this analysis and the results look promising. To ensure that some data exploration was performed the authors (HQ remote sensing department) performed some preliminary exploratory analysis of the NGA data. These results are presented in chapter 5. 
+
+Regarding the HSM validation study, the HSM analysts have agreed to integrate the tabular remote sensing data into there analyses with a primary focus on South Sudan. The lower sample sizes an reduced spatial coverage of remaining 3 HSM data sets warrant de-prioritization.
+
+### Case Studies/Tutorials
+
+The case studies/tutorials presented in this book just represent a few interesting applications of remote sensing in humanitarian work. Some of the methods presented were used in the above assessment methodology (chapter 1-5) while others were used for ad-hoc analysis, fact sheets, maps, and other products. This section contains only a fraction of the use-cases developed so far and contains basically none of the country-developed work flows. It is the authors hope that country teams would be able to immediately contribute to this section so that it might serve as some sort of repository and reference for a lot of the great work that has already been done.
