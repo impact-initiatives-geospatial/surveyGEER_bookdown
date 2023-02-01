@@ -24,11 +24,11 @@ knitr::opts_chunk$set(
 ```
 
 ```{r setup_hide_wc,eval=T, echo=F,include=F}
-library(surveyGEER, quietly = T)
-library(rgee, quietly = T)
+# library(surveyGEER, quietly = T)
+# library(rgee, quietly = T)
 library(tidyverse, quietly = T)
 library(sf, quietly = T)
-library(tidyrgee, quietly = T)
+# library(tidyrgee, quietly = T)
 ```
 
 

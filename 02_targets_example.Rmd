@@ -2,13 +2,16 @@
 
 ## Targets
 
-explain what `{targets}` is and how it heleps
+The R package [{targets}](https://github.com/ropensci/targets) [@R-targets] proved to be essential to scale the RS extraction across thousands of records and multiple contexts. The package provides a clean and concise way to transform  your analysis into a transparent and reproducible pipeline while tracking and organizing both intermediary and final outputs. The `{target}` GH page and [user manual](https://books.ropensci.org/targets/) do a much better job explaining utility and benefits of the package than I can provide. However, I'll just provide a few bullet points on why targets was important for this project followed by a short  example extract of part of a targets pipeline:
 
-## Example 
+- The process of extracting GEE imagery to vector data can be computationally heavy especially when that vector data is thousands of points (we are talking hours). By creating targets for each of these extractions that data is stored as an `.rds` file. Targets tracks your code and these `.rds` files and only runs the process to regenerate the file if the code changes.
+- This tracking made it easy to track the RS outputs per country and make sure any changes to the extraction process were appropriately applied.
+- In general it seems that using GEE Javascript code editor for this job would be very difficult if not impossible to scale (at least for one analyst) due to the fact that Javascript in GEE does not have an interactive shell or REPL (Read-Eval-Print-Loop). Therefore every GEE code editor script needs to be run in it's entirety every time.
 
-using colombia code as a placeholder to demonstrate the targets pipeline, but can choose a better one.
+
+Below is an example the portion of the targets pipeline that was used to extract RS variables to the Colombia data set. 
+
 ```{r,eval = F, echo=T}
-
  # Created by use_targets().
 # Follow the comments below to fill in this target script.
 # Then follow the manual to check and run the pipeline:
@@ -19,11 +22,7 @@ library(targets)
 library(rgee)
 library(rlang)
 library(dplyr)
-
-
 rgee::ee_Initialize(drive=T)
-
-
 # library(tarchetypes) # Load other packages as needed. # nolint
 
 # Set target options:
@@ -58,9 +57,7 @@ lapply(list.files("R", full.names = TRUE, recursive = TRUE), source)
 # Replace the target list below with your own:
 # Colombia Targets
 list(
-
 # Colombia ----------------------------------------------------------------
-
   tar_target(
     name = col_pt_data_clean,
     command = load_clean_col_assessement_points(country_code = "col")

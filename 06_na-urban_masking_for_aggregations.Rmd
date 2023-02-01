@@ -10,7 +10,7 @@ knitr::opts_chunk$set(
 options(tidyverse.quiet = TRUE)
 ```
 
-# Urban Masking for Environmental Monitoring
+# Urban Masking for Environmental Monitoring {#urban-masking}
 
 ## Intro & Problem
 
@@ -36,9 +36,6 @@ ee_Initialize(quiet = T)
 ```
 
 ```{r urb_setup_hide, eval =T, echo=F}
-library(surveyGEER)
-library(tidyrgee)
-library(rgee)
 library(tidyverse)
 ```
 

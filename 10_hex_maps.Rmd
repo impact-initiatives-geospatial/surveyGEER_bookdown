@@ -35,6 +35,13 @@ knitr::include_graphics("man/figures/20220420_som_record_low_rainfall_2021.png")
 
 First we load the required libraries and modis + chirps image collections using `{rgee}`
 
+```{r, echo=F,eval=T}
+library(surveyGEER, quietly=T)
+library(tidyverse, quietly=T)
+library(sf, quietly=T)
+```
+
+
 ```{r, echo=T, eval=FALSE}
 library(surveyGEER)
 library(rgee)
@@ -81,7 +88,10 @@ grid_utm <- st_make_grid(x = som_boundary_utm,
   st_as_sf()
 
 grid_utm_clipped <- grid_utm[som_boundary_utm,] |> 
-  rename(geometry="x")
+  rename(geometry="x") |> 
+  mutate(
+    grid_id = row_number()
+  )
 ```
 
 Always good visualize the results of our code. Let's map the grid to make sure it is right. We will use `{leaflet}` which requires the data to be in the coordinate reference system of wgs 84. Therefore we will re project the data prior to mapping it in Figure \@ref(fig:map-somgrid)
@@ -125,7 +135,7 @@ modis_ndvi_tidy <- as_tidyee(modis_ndvi)
 monthly_baseline <- modis_ndvi_tidy |> 
   filter(year %in% 2000:2015) |> 
   group_by(month) |> 
-  summarise(stat=list("mean","sd"))
+  summarise(stat=list("mean","sd","median"))
 ```
 
 Now that we have our baseline let's calculate the the average monthly NDVI for more recent years so that we can compare. We will first filter the `ImageCollection` to 2016-2022. Since we are working with the MODIS NDVI 16-day composite we have approximately 2 images per month. Therefore to simplify the process we should take the average NDVI value (per pixel) each month. To do this we can first `group_by(year,month)` and then call `summarise`. Remember if we just called `group_by(month)` it would return 12 images with 1 monthly average value for the entire time period of 2022-2012. By grouping by year and month we get the average monthly value for each year!
@@ -135,17 +145,17 @@ ndvi_recent_monthly <- modis_ndvi_tidy |>
   filter(year %in% c(2016:2022)) |> 
   group_by(year,month) |> 
   summarise(
-    stat="mean"
+    stat=list("mean","median")
   )
 ```
 
 
-Since I know I want to eventually combine the baseline stats calculated previously (`NDVI_mean`, `NDVI_sd`) with these new monthly means ,I need to rename the band produced in this new summary. By default the band_name is written as: `original band names` + `_` + `stat`. To avoid duplicate band names later when joining I will rename the band names in `ndvi_recent_monthly` from `NDVI_mean` just to `NDVI`. We can do this with the select method just by supplying a name (will be adding a pure `rename` function soon).
+Since I know I want to eventually combine the baseline stats calculated previously (`NDVI_mean`, `NDVI_sd`) with these new monthly means ,I need to rename the band produced in this new summary. By default the band_name is written as: `original band names` + `_` + `stat`. To avoid duplicate band names later when joining I will rename the band names in `ndvi_recent_monthly` from `NDVI_mean` just to `NDVI_recent_mean`. We can do this with the select method just by supplying a name (will be adding a pure `rename` function soon).
 
 
 ```{r, echo=T}
 ndvi_recent_renamed <- ndvi_recent_monthly |> 
-  select(NDVI="NDVI_mean")
+  select(NDVI_recent_mean="NDVI_mean", NDVI_recent_median="NDVI_median")
 ```
   
 
@@ -168,18 +178,30 @@ ndvi_recent_baseline_imageCol <- ndvi_recent_and_baseline |>
   as_ee()
 
 ndvi_recent_baseline_imageCol$first()$bandNames()$getInfo()
-ndvi_zscore<- ndvi_recent_baseline_imageCol$map(
+
+ndvi_z_pct<- ndvi_recent_baseline_imageCol$map(
   function(img){
     zscore<- img$expression(
-      "float((NDVI-NDVI_mean)/(NDVI_sd))",
-      opt_map= list(NDVI= img$select("NDVI"),
-                    NDVI_mean= img$select("NDVI_mean"),
-                    NDVI_sd= img$select("NDVI_sd")
+      "float((NDVI_recent_mean-NDVI_historical_mean)/(NDVI_historical_sd))",
+      opt_map= list(NDVI_recent_mean= img$select("NDVI_recent_mean"),
+                    NDVI_historical_mean= img$select("NDVI_mean"),
+                    NDVI_historical_sd= img$select("NDVI_sd")
       )
     )$rename("NDVI_z_score")
-    img$select("NDVI","NDVI_mean")$addBands(zscore)
+    
+    pct_median<- img$expression(
+      "float(NDVI_recent_median/NDVI_historical_median)",
+      opt_map= list(NDVI_recent_median= img$select("NDVI_recent_median"),
+                    NDVI_historical_median= img$select("NDVI_median")
+      )
+    )$rename("NDVI_pct_median")
+  
+    img$select("NDVI_recent_mean","NDVI_mean")$addBands(list(zscore,pct_median))
   }
 ) 
+
+ndvi_z_pct$first()$bandNames()$getInfo()
+
 ```
 
 ### Zonal stats per hexagon
@@ -192,11 +214,13 @@ Zonal statistics are heavery computationally expensive calculations. For example
 - we are only really interested 2021 onwards so let's filter the object to everything from 2021 onwards
 
 ```{r,echo=T}
-ndvi_z<- as_tidyee(ndvi_zscore)
+ndvi_z<- as_tidyee(ndvi_z_pct)
 
 ndvi_z_pre_processed <- ndvi_z |>
   filter(year>=2021) |>
-  select("NDVI_z_score")
+  select("NDVI_z_score","NDVI_pct_median")
+
+
 ```
 
 
@@ -205,9 +229,29 @@ You should run `?ee_extract_tidy` to check all the optional parameters. It is im
 
 ```{r, echo=T}
 grid_with_ndvi <- ndvi_z_pre_processed |> 
-  ee_extract_tidy(y = grid_wgs84_clipped,stat = "mean",scale = 250,via = "drive")
+  ee_extract_tidy(y = grid_wgs84_clipped  ,stat = "mean",scale = 250,via = "drive")
 ```
 
+
+Now what we have is a long format grid data.frame file where we have have grid cell with an NDVI Z score and NDVI % median repeated for every month since 2021 on-wards. Since this file is a data.frame and no longer spatial/sf let's join it back to the spatial grid.
+
+```{r, echo=T}
+grid_with_ndvi_spatial <- grid_wgs84_clipped |> 
+  left_join(grid_with_ndvi,by ="grid_id")
+```
+
+
+Now that we have our spatial file with the values we are interested in, if you are just interested in later visualizing 1 or a few specific months it may be easiest for you to visualize them one at a time in QGIS/ArcGIS by just filtering to the specific date of interest. You can filter prior to writing the file or you can write out the long format file and filter later in your GIS software of choice
+
+Here we are going to write out the entire long data frame with all the monthly data so that we can use QGIS atlas to create maps for all the months at once. 
+
+We are going to write these files to a geopackage. Since we do not currently  have geopackage we want to write to we will create a geopackage called "hex_climate.gpkg" and name our layer "hex_grid_ndvi". If you already have a geopackage you would like to write the file you should specify the path to the geopackage in the `dsn` argument and add `append = T`  to the `st_write()` function. This append argument is **important** so you do not overwrite you geopackage. If you choose to continue with the chirps portion of the tutorial you cand write ot the same geopackage with this append argument. 
+
+```{r}
+st_write(obj = grid_with_ndvi,dsn = "hex_climate.gpkg",layer = "hex_grid_ndvi")
+```
+
+Now you have what is needed for the QGIS visualization. Both `NDVI_pct_median` and `NDVI_z_score` can be visualized with numeric gradients/classifications. While a tutorial on QGIS atlas and general GIS visualization is beyond the scpoe of this docuemnts, we have produced a video tutorial and templates with style files that can be quickly used to generate the maps displayed above. These are available upon request from Matt Wencel (matt.wencel@impact-initiatives.org).
 
 ## Chirps Hex Maps
 
@@ -281,43 +325,22 @@ record_lows_2021 <- yearly_rainfall_hex |>
 
 
 - We then join the 2021 record breaking records to the original clipped grid and take the centroids of all grid cells
-- write output as shapefile for vizualization in QGIS.
+- write output as shape file for visualization in QGIS.
 
 ```{r, echo=T}
 # join record lows to original hex object by "uid" to make spatial again
 # then filter out any hex that does not have record breaking value
 # change remaining hex's to centroid points so that we can map as proportional bubbles.
 record_low_centroids<- grid_wgs84_clipped |> 
-  dplyr::left_join(record_lows_2021) |> 
+  left_join(record_lows_2021) |> 
   filter(record_low==T) |> 
   st_centroid() 
 
 if(!is.null(write_outputs_to)){
-  sf::st_write(obj = record_low_centroid,dsn = record_low_centroids,layer = "precip_record_low.shp")
+  sf::st_write(obj = record_low_centroid,dsn = "hex_climate.gpkg",layer = "precip_record_low",append=T)
 }
 ```
 
 ### QGIS Templates
 
-We have provided QGIS templates in the `map_templates` folder of this directory. Once the data has been extracted and save to the `data` folder in the project you should open up the either of the map templates. 
-
-To use the map templates you must link the data sources to the layers. Once linked the symbology will automatically be set. To use these templates you should also have some layers of your own. If you put all of you GIS layers into the data folder when you link one the rest will auto-link. You should put the following layers into the data folder:
-
-1. Admin 1 boundary (usually OCHA or UNDP)
-2. Admin 2 boundary (usually OCHA or UNDP)
-3. Hexagon grid (either pre-existing or created by you above)
-4. NDVI layer (Hexagon output by script above)
-5. Precipitation layer (point file output by script above)
-6. World Adm0 boundaries - downloaded from [natural earth](https://www.naturalearthdata.com/downloads/10m-cultural-vectors/10m-admin-0-countries/)
-
-
-```{r, eval=T, results="asis"}
-knitr::include_graphics("man/figures/qgis_layers_panel.png")
-```
-
-
-```{r, eval=T, results="asis"}
-
-knitr::include_graphics("man/figures/qgis_layers_panel.png")
-
-```
+available upon request 

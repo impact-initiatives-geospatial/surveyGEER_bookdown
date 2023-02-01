@@ -32,44 +32,50 @@ nga_svy <- read_rds(file.path(Sys.getenv("MSNA2022_DIR"),"nga","inputs","nga_svy
 nga_svy$data_main <- as_survey(nga_svy$data_main)
 ```
 
-# Preliminary results
+# Exploratory Analysis Results (prelim)
 
-This chapter will walk through some of the initial exploratory analysis performed so far
+This chapter will walk through some of the initial exploratory analysis performed so far. As mentioned in section \@ref(current-work-status-assessment) little country level resources have been allocated thus far to integrate the provided RS data into there analysis. By removing the country level expertise we are left largely in the dark with regards to finding suitable research questions, understanding the intricacies of the data/questionnaire, and contextualizing the results (see [limitation section](#analysis-limitations)). Nonetheless in an attempt to provide impetus for further work done by country analysts  we present some initial very exploratory analysis done for **Nigeria** and briefly provide some preliminary results from analysis that was performed by the **Colombia** country team.
 
-## Overview
+## General Framework/ Research Angle
+
+To understand how environmental/climatic and general remote sensing derived indicators might impact or relate to household indicators collected in the field we have to first understand what household indicators are most useful and reflective of needs/conditions at the household level. Additionally to properly explore these relationships we  need clear hypotheses of why/how an environmental condition could effect these measurements at the household level.
+
+From a general standpoint we were of the view that food security, income/livelihoods, and potentially health related questions/data would be the priority themes to relate to relate to the remote sensing derived indicators. Unfortunately the NGA data is light on food security questions [limitation section](#analysis-limitations). Nonetheless, the NGA field team did provide feedback that based on there preliminary analysis of HH data they believed that HH income to be the main driver of needs in the population. Therefore estimated household income will be the focus of this exploratory analysis for NGA.
+
+Associations/correlations with HH estimated income were explored with the following research questions/hypotheses in mind:
+
+- Climate, weather, and environmental hazards can impact HH income
+  + unfavorable conditions (drought, flooding) may impact harvest
+  + unfavorable conditions (drought, flooding) may impact availability of work
+- Urbanization/remoteness of location may underlie or be associated with different humanitarian conditions and income
+  + More rural/remote areas may have less access to work and services
+  
+In addition to income there were other identified variables that seemed to directly relate to RS indicators that we decided to explore to see if the results would corroborate one another.
+
+## Nigeria
 
 Below we show an overview map of the assessment activities carried out in Somalia, Nigeria, Iraq, and Colombia.
 Not going to give an overview of each countries climate yet
 
-
-
-## Nigeria
-
-Before exploring how remote sensing derived indicators might impact or relate to household indicators/questions we have to first understand what household indicators are most useful and representative of needs/conditions at the household level. Additionally, to relate the indicators designed in the assessment research design to environmental indicators we do need clear hypotheses of why/how an environmental condition could effect these measurements at the household level. This is difficult for an external analyst and is discussed further in the limitation/discussion section.
-
-
-### Indicators/hypotheses
-
-Going into this exercise we understood that generally food security, income/livelihoods, and potentially health related indicators would be the most opportune ares to relate to environmental indicators. Unfortunately the NGA data is light on food security (see limitations) therefore we shift towards income and start with some research questions and go on to break these into sub-research questions with hypothes:
-
-- overall income for the HH was collected as a categorical ordinal question.
-  + Can we identify major drivers of income
-- dsalkfadsk
-
-
 ### Income Exploration
 
-Before attempting correlation/association with environmental variables we have to figure out if there are any other major drivers of income that we need to account for. If we plot estimate income by gender HoH (Figure \@ref(fig:plot-ngaIncomeGender)) it becomes evident that male headed households dominate the higher income brackets and female the lower income brackets.
+Before attempting correlation/association with environmental variables we have to figure out if there are any other major drivers of income that we need to account for. 
 
+#### HH Characteristics {-}
 
+##### Gender HoH {-} 
 
-```{r plot-ngaIncomeGender, fig.caption= 'Income vs gender HoH' ,eval = T, results ="asis"}
+If we plot estimate income by gender HoH (Figure \@ref(fig:plot-ngaIncomeGender)) it becomes evident that male headed households dominate the higher income brackets and female the lower income brackets.
+
+```{r echo=F, eval = T}
 nga_svy$data_main <- nga_svy$data_main |> 
   mutate(
         overall_income_estimate=xlsf:::label_vec_from_xml(xlsf = nga_svy,q_name = "overall_income_estimate"),
         nearest_health_care = xlsf:::label_vec_from_xml(xlsf=nga_svy, q_name="nearest_health_care")
   ) 
+```
 
+```{r plot-ngaIncomeGender,fig.cap='Income vs gender HoH' ,eval = T, results ="asis", echo=F}
 
 nga_svy$data_main  |> 
    group_by(gender_hoh,overall_income_estimate) |> 
@@ -88,9 +94,9 @@ nga_svy$data_main  |>
   )
 ```
 
+Since we see this discrepancy let's look at the sample size quickly for each gender.
 
-Since we see this discrepancy let's look at the sample size quickly for 
-```{r tbl-genderBreak ,eval = T, results ="asis"}
+```{r tbl-genderBreak ,eval = T, results ="asis", echo=F}
 nga_svy$data_main$variables |> 
   group_by(gender_hoh) |> 
   summarise(
@@ -101,151 +107,12 @@ nga_svy$data_main$variables |>
 ```
 
 
-
-
-Since we know income is important let's have  quick look 
-
-Based on guidance from the country office we used MODIS data to extract the median NDVI anomaly around all for the previous 2021 growing season (June 20 - September 26). If we plot those values against income (just male hoh for now) we do not see a clear trend. We just see that all HHs generally tend to have slight negative Z-score for NDVI in the previous growing season. 
-
-
-```{r eval = T, results ="asis"}
-
-nga_svy$data_main  |> 
-   group_by(gender_hoh,overall_income_estimate) |> 
-  summarise(
-    survey_mean(rs_ndvi_z_growing_season_21,vartype = "ci",na.rm=T),
-    bla=unweighted(n())
-  ) |>
-  filter(gender_hoh=="male") |>
-  ggplot(aes(x= overall_income_estimate,
-             y=coef,
-             color=gender_hoh
-             ))+
-  # scale_y_continuous(labels = scales::percent)+
-  geom_errorbar(aes(ymin=`_low`, ymax=`_upp`))+
-  labs(x= "HH Income Estimate")+
-  geom_point()+
-  coord_flip()+ 
-  theme_bw()+
-  theme(
-    axis.title.x = element_blank()
-  )
-```
-
-This brings us to a large question mark on how we should aggregate RS data for HH analysis. The MODIS data we are using is 250 m therefore the pixels extracted at the HH do represent an area larger than the HH and could theoretically include small shareholder farming around the HH. However:
-
-- is 250 m sufficient to understand how agriculture/vegetative health in the area surrounding the HH could affect the HHs? 
-- Also I did manually scan satellite imagery in NW NGA in combination with the ESA global landcover and what became obvious is that while towns are rural they have a clear footprint. This means that aggregating hh points in the time rural towns would largely be influence by this cleared footprint. Additionally since we are calculating NDVI anomaly using all years on up to date of interest (2000-2021) HHs in new settlements and or settlements that have grown or become more urbanized in any way will be biased towards a negative ndvi anomaly signature
-- Therefore we extract the same data, but this time using the ESA urban mask as described in chapter xxx. In summary, we mask the urban area and the apply a focal median  to fill in the masked area. 
-
-First we try it with a focal window size of 4 pixels (1000 meters)
-
-```{r eval = T, results ="asis"}
-
-nga_svy$data_main  |> 
-   group_by(gender_hoh,overall_income_estimate) |> 
-  summarise(
-    survey_mean(rs_ndvi_z_growing_season_21_fs4,vartype = "ci",na.rm=T),
-    bla=unweighted(n())
-  ) |>
-  filter(gender_hoh=="male") |>
-  ggplot(aes(x= overall_income_estimate,
-             y=coef,
-             color=gender_hoh
-             ))+
-  # scale_y_continuous(labels = scales::percent)+
-  geom_errorbar(aes(ymin=`_low`, ymax=`_upp`))+
-  labs(x= "HH Income Estimate")+
-  geom_point()+
-  coord_flip()+ 
-  theme_bw()+
-  theme(
-    axis.title.x = element_blank()
-  )
-```
-
-
-and then a focal window size of 10 pixels or 2.5 km (Figure \@ref(fig:plot-ndviIncomeFS10)). This exercise seems quite insightful as the expected trend of higher income associated with healthier vegetation compared to normal. You can see that when the focal window was increased the anomaly values become less negative. This could very likely be do to the larger window minimizing the effect of urbanized pixels. 
-
-Now we must ask ourselves why are do the anomalies appear to be generally negative?
-
-- is it because it is a drier than normal year over the entire study area?
-- or is it potentially because of this urban affect on the anomalies. The increase in signature associated with increasing the window size suggests this is a possibility. It is quite likely that the ESA urban mask does not capture the full extent of the urban area in these rural towns. In additional to playing with the windows size a urban mask dilation procedure prior to masking should be explored - I hypothesize that the anomalies will shift more to more positive values and this relationship will also strengthen
-
-```{r plot-ndviIncomeFS10, eval = T, results ="asis"}
-nga_svy$data_main  |> 
-   group_by(gender_hoh,overall_income_estimate) |> 
-  summarise(
-    survey_mean(rs_ndvi_z_growing_season_21_fs10,vartype = "ci",na.rm=T),
-    bla=unweighted(n())
-  ) |>
-  filter(gender_hoh=="male") |>
-  ggplot(aes(x= overall_income_estimate,
-             y=coef,
-             color=gender_hoh
-             ))+
-  # scale_y_continuous(labels = scales::percent)+
-  geom_errorbar(aes(ymin=`_low`, ymax=`_upp`))+
-  labs(x= "HH Income Estimate")+
-  geom_point()+
-  coord_flip()+ 
-  theme_bw()+
-  theme(
-    axis.title.x = element_blank()
-  )
-```
-
-
-Now let's look at rainfall.
-```{r eval = T, results ="asis"}
-# nga_svy$data_main$variables$rs_rx10d_90d_may
-nga_svy$data_main  |> 
-   group_by(gender_hoh,overall_income_estimate) |> 
-  summarise(
-    survey_mean(rs_rx10d_90d_may,vartype = "ci",na.rm=T),
-    bla=unweighted(n())
-  ) |>
-  filter(gender_hoh=="male") |>
-  ggplot(aes(x= overall_income_estimate,
-             y=coef,
-             color=gender_hoh
-             ))+
-  # scale_y_continuous(labels = scales::percent)+
-  geom_errorbar(aes(ymin=`_low`, ymax=`_upp`))+
-  labs(x= "HH Income Estimate")+
-  geom_point()+
-  coord_flip()+ 
-  theme_bw()+
-  theme(
-    axis.title.x = element_blank()
-  )
-
-```
-
-
-```{r eval = T, results ="asis"}
-nga_svy$data_main |> 
-  group_by(overall_income_estimate,gender_hoh,i.have_cattle=`hh_situation/catte_rearing`) |> 
-  summarise(
-    pct_mean = survey_mean()
-  ) |> 
-  # filter(i.have_cattle==T) |>
-  ggplot(aes(x= overall_income_estimate,
-             y=pct_mean
-             ))+
-  geom_line(aes(group=overall_income_estimate) )+
-  geom_point(aes(color=gender_hoh),stat="identity",position= "dodge")+
-  facet_wrap(~i.have_cattle,scales = "free")+
-  coord_flip()+
-  theme_bw()
-```
-
-
+##### Owning Cattle {-}
 Does having cattle affect reported income bracket?
 
 For female headed households it looks like the answer is no. For male headed households we see that the higher income brackets tend to be more likely to own cattle, whereas the lower income brackets do not.
 
-```{r}
+```{r, eval= T, echo=F, results="asis"}
 nga_svy$data_main |> 
   # filter(gender_hoh=="male") |> 
   group_by(gender_hoh,i.have_cattle=`hh_situation/catte_rearing`,overall_income_estimate) |> 
@@ -264,7 +131,27 @@ nga_svy$data_main |>
   theme_bw()
 ```
 
-```{r}
+
+```{r, eval= F, echo=F, results="asis"}
+nga_svy$data_main |> 
+  group_by(overall_income_estimate,gender_hoh,i.have_cattle=`hh_situation/catte_rearing`) |> 
+  summarise(
+    pct_mean = survey_mean()
+  ) |> 
+  # filter(i.have_cattle==T) |>
+  ggplot(aes(x= overall_income_estimate,
+             y=pct_mean
+             ))+
+  geom_line(aes(group=overall_income_estimate) )+
+  geom_point(aes(color=gender_hoh),stat="identity",position= "dodge")+
+  facet_wrap(~i.have_cattle,scales = "free")+
+  coord_flip()+
+  theme_bw()
+```
+
+
+
+```{r, eval=F, echo=F}
 nga_svy$data_main |> 
   # filter(gender_hoh=="male") |> 
   group_by(gender_hoh,rs_alos_landforms,overall_income_estimate) |> 
@@ -303,11 +190,213 @@ nga_svy$data_main |>
 
 ```
 
-### Accessibility
 
-Oxford Malaria project produced a global RS dataset in 2019 that predicts walking and total travel times to nearest health center. Here we test it against HH reports of travel times to nearest health center.
+#### Vegetative Health {-}
 
-```{r}
+As the 2022 NGA data collection occurred (March-July) long before the growing season (June to September) culminated it was assumed that the agricultural conditions of this current growing season would not yet have impacted the population or had any affect on assessment results. Therefore vegetative health was measured over the 2021 growing season with the idea being that poor harvests/or labor conditions could still be affecting the population of interest.
+
+Median NDVI anomaly (Z Score) was calculated over the 2021 growing season using MODIS data and 2000-2021 as the baseline. Prior to extraction bnands were cloud & quality masked and gap filled using Terra and Aqua combination (TAC) method [@li2020gap] , [@parajka2008modistac] followed by [temporal interpolation](https://spatialthoughts.com/2021/11/08/temporal-interpolation-gee/#more-6094)
+
+In Figure \@ref(fig:plot-NdvizIncome) we plot these NDVI anomaly values against income (just male hoh for now) and we notice that HHs in all income groups generally tend to have slightly negative Z-score, but we see **no clear trend or association**. 
+
+```{r plot-NdvizIncome, fig.cap = 'NDVI Z score against estimated HH income', eval = T, echo= F, results ="asis"}
+
+nga_svy$data_main  |> 
+   group_by(gender_hoh,overall_income_estimate) |> 
+  summarise(
+    survey_mean(rs_ndvi_z_growing_season_21,vartype = "ci",na.rm=T),
+    n_unweighted=unweighted(n())
+  ) |>
+  filter(gender_hoh=="male") |>
+  ggplot(aes(x= overall_income_estimate,
+             y=coef,
+             color=gender_hoh
+             ))+
+  geom_errorbar(aes(ymin=`_low`, ymax=`_upp`))+
+  geom_text(aes(label=n_unweighted,x=overall_income_estimate,y=-.29,
+                fill=NULL)) +
+  labs(x= "HH Income Estimate")+
+  geom_point()+
+  coord_flip()+ 
+  theme_bw()+
+  theme(
+    legend.position = "none",
+    axis.title.x = element_blank()
+  )
+```
+
+This brings us to a large question mark on how we should aggregate RS data for HH analysis. The MODIS data we are using is 250 m therefore the pixels extracted at the HH location do represent an area larger than the HH itself and could theoretically include smallholder agricultural plots around the HH. However:
+
+- is 250 m sufficient to understand how agriculture/vegetative health in the area surrounding the HH could affect the HHs? 
+- After manually scanning satellite imagery in NW NGA in combination with the ESA global land cover it is apparent that even very rural towns have clear footprint which is often classified correctly or at least partially correctly by the ESA urban classifications. Therefore, NDVI extracted from 250 meter MODIS pixels at HH locations in NW NGA are largely influenced by an urban/built-up signature. Furthermore, as NDVI anomaly calculation is based on historical (2000-2021) baseline. Anomaly pixels in newer settlements and or settlements that have grown or become more urbanized over time  will be biased towards a more negative NDVI anomaly signature.
+
+To address these questions we apply an urban masking and focal window processing step to the MODIS imagery, prior to extraction, as described in more detail in the [Urban Masking for Environental Analysis Chapter](#urban-masking). To briefly summarise, we first use the ESA global land cover layer to mask  urban areas. We then the apply moving focal window/kernel calculation to fill in the masked area where we take the median value of surrounding pixels depending upon the chosen window size.  
+
+The kernel size and shape are subjective, therefore we explore this method with both a circular focal window of 4 pixels or 1km (Figure \@ref(fig:plot-ndvizIncomeF4)) and 10 pixels or 2.5 km (Figure \@ref(fig:plot-ndvizIncomeF10)) 
+
+```{r plot-ndvizIncomeF4,fig.cap= 'For NDVI anomaly calculations urban areas were masked and a circular focal window of 4 pixels was used to fill in the masked area with a median calculation',  eval = T, echo=F,results ="asis"}
+
+nga_svy$data_main  |> 
+   group_by(gender_hoh,overall_income_estimate) |> 
+  summarise(
+    survey_mean(rs_ndvi_z_growing_season_21_fs4,vartype = "ci",na.rm=T),
+    n_unweighted = unweighted(n())
+  ) |>
+  filter(gender_hoh=="male") |>
+  ggplot(aes(x= overall_income_estimate,
+             y=coef,
+             color=gender_hoh
+             ))+
+  # scale_y_continuous(labels = scales::percent)+
+  geom_errorbar(aes(ymin=`_low`, ymax=`_upp`))+
+  geom_text(aes(label=n_unweighted,x=overall_income_estimate,y=-0.3,
+                fill=NULL)) +
+  labs(x= "HH Income Estimate")+
+  geom_point()+
+  coord_flip()+ 
+  theme_bw()+
+  theme(
+    legend.position = "none",
+    axis.title.x = element_blank()
+  )
+```
+
+
+This exercise seems quite insightful as the expected trend of higher income associated with healthier vegetation compared to normal. You can see that when the focal window was increased the anomaly values become less negative. This could very likely be do to the larger window minimizing the effect of urbanized pixels. 
+
+Now we must ask ourselves why are do the anomalies appear to be generally negative?
+
+- is it because it is a drier than normal year over the entire study area?
+- or is it potentially because of this urban affect on the anomalies. The increase in signature associated with increasing the window size suggests this is a possibility. It is quite likely that the ESA urban mask does not capture the full extent of the urban area in these rural towns. In additional to playing with the windows size a urban mask dilation procedure prior to masking should be explored - I hypothesize that the anomalies will shift more to more positive values and this relationship will also strengthen
+
+```{r plot-ndvizIncomeF10,fig.cap= 'For NDVI anomaly calculations urban areas were masked and a circular focal window of 10 pixels was used to fill in the masked area with a median calculation', eval = T, echo=F, results ="asis"}
+nga_svy$data_main  |> 
+   group_by(gender_hoh,overall_income_estimate) |> 
+  summarise(
+    survey_mean(rs_ndvi_z_growing_season_21_fs10,vartype = "ci",na.rm=T),
+    n_unweighted=unweighted(n())
+  ) |>
+  filter(gender_hoh=="male") |>
+  ggplot(aes(x= overall_income_estimate,
+             y=coef,
+             color=gender_hoh
+             ))+
+  # scale_y_continuous(labels = scales::percent)+
+  geom_errorbar(aes(ymin=`_low`, ymax=`_upp`))+
+  geom_text(aes(label=n_unweighted,x=overall_income_estimate,y=-.197,
+                fill=NULL)) +
+  labs(x= "HH Income Estimate")+
+  geom_point()+
+  coord_flip()+ 
+  theme_bw()+
+  theme(
+    legend.position= "none",
+    axis.title.x = element_blank()
+  )
+```
+
+
+#### Rainfall {-}
+
+Based on the hypothesis that rainfall could impact income through the effect of property damage and lack of available work (agricultural) we looked at rainfall events during the 2022 rainy season.
+
+In Figure \@ref(fig:plot-Rx10d90dMay) we plot the maximum recorded rainfall over any 10 day period in the last 90 days since the end of May against income, while in Figure \@ref(fig:plot-Rx3d90dMay) we do the same but with the maximum 3 day rainfall event over the last 90 since the end of May.
+
+```{r plot-Rx10d90dMay, fig.cap='Maximum 10 day rainfall event between March and May', eval = T, echo= F, results ="asis"}
+# nga_svy$data_main$variables$rs_rx10d_90d_may
+nga_svy$data_main  |> 
+   group_by(gender_hoh,overall_income_estimate) |> 
+  summarise(
+    survey_mean(rs_rx10d_90d_may,vartype = "ci",na.rm=T),
+    n_unweighted=unweighted(n())
+  ) |>
+  filter(gender_hoh=="male") |>
+  ggplot(aes(x= overall_income_estimate,
+             y=coef,
+             color=gender_hoh
+             ))+
+  # scale_y_continuous(labels = scales::percent)+
+  geom_errorbar(aes(ymin=`_low`, ymax=`_upp`))+
+  geom_text(aes(label=n_unweighted,x=overall_income_estimate,y=18,
+                fill=NULL)) +
+  labs(x= "HH Income Estimate",y= "Rainfall (mm)")+
+  geom_point()+
+  coord_flip()+ 
+  theme_bw()+
+  theme(
+    axis.title.x = element_blank(),
+    legend.position = "none"
+  )
+
+```
+
+
+```{r plot-Rx3d90dMay,fig.cap='Maximum 3 day rainfall event between March and May', eval = T, echo= F, results ="asis"}
+
+nga_svy$data_main  |> 
+   group_by(gender_hoh,overall_income_estimate) |> 
+  summarise(
+    survey_mean(rs_rx3d_90d_may,vartype = "ci",na.rm=T),
+    n_unweighted=unweighted(n())
+  ) |>
+  filter(gender_hoh=="male") |>
+  ggplot(aes(x= overall_income_estimate,
+             y=coef,
+             color=gender_hoh
+             ))+
+  # scale_y_continuous(labels = scales::percent)+
+  geom_errorbar(aes(ymin=`_low`, ymax=`_upp`))+
+  geom_text(aes(label=n_unweighted,x=overall_income_estimate,y=12,
+                fill=NULL)) +
+  labs(x= "HH Income Estimate",y= "Rainfall (mm)")+
+  geom_point()+
+  coord_flip()+ 
+  theme_bw()+
+  theme(
+    axis.title.x = element_blank(),
+    legend.position= "none"
+  )
+
+```
+
+#### Remoteness/Urbanization {-}
+
+Oxford Malaria project produced a global RS dataset in 2019 that predicts walking and total travel times to nearest health center. In Figure \@ref(fig:plot-travelTimeIncome) we look at travel time against income estimated income bracket. It does appear that there is a significant trend where the higher income brackets are associated less travel time to health facilities.  We see a similar association in the analysis by the Colombia team in Section \@ref(colombia-results). We look closer at the Oxford Malaria Project indicators in the [next section]{#accessibility-nga}, but further posit that this association may be attributed to the Oxford travel time raster, while likely not super accurate in NGA, serving as a relatively good/proportional proxy for urbanization-remoteness.
+
+
+```{r plot-travelTimeIncome,fig.cap='Walking time to nearest health facility against income', eval = T, echo= F, results ="asis"}
+
+nga_svy$data_main  |> 
+   group_by(gender_hoh,overall_income_estimate) |> 
+  summarise(
+    survey_mean(rs_healthcare_accessbility_walking_only2019,vartype = "ci",na.rm=T),
+    n_unweighted=unweighted(n())
+  ) |>
+  filter(gender_hoh=="male") |>
+  ggplot(aes(x= overall_income_estimate,
+             y=coef,
+             color=gender_hoh
+             ))+
+  # scale_y_continuous(labels = scales::percent)+
+  geom_errorbar(aes(ymin=`_low`, ymax=`_upp`))+
+  geom_text(aes(label=n_unweighted,x=overall_income_estimate,y=18,
+                fill=NULL)) +
+  labs(x= "HH Income Estimate",y= "Walking time to nearest health facility (minutes)")+
+  geom_point()+
+  coord_flip()+ 
+  theme_bw()+
+  theme(
+    legend.position="none"
+    # axis.title.x = element_blank()
+  )
+
+```
+
+### Accessibility {#accessibility-nga}
+
+Here we look further into the Oxford access indicator of walking time to nearest health facility. Interestingly, we asked respondents: "How long does it take you to reach the nearest healthcare facility by walking?" Therefore, we plotted these results against the RS derived travel time in Figure \@ref(fig:plot-rsTravelDistReportDist). We see that the remotely sensed walking times to nearest health center do generally correlate with  HH reported travel times. However, RS calculations for HHs that reported over 15 minutes travel time do appear to be too low"
+
+```{r plot-rsTravelDistReportDist, fig.cap='We see that the remotely sensed walking times to nearest health center do generally correlate with  HH reported travel times. However, RS calculations for HHs that reported over 15 minutes travel time do appear to be too low',eval= T, echo=F, results="asis"}
 
 nga_svy$data_main |> 
   group_by(nearest_health_care) |> 
@@ -319,26 +408,32 @@ nga_svy$data_main |>
              y=pct_mean
              ))+
   geom_point()+
+  # scale_x_discrete(label=str_wrap)
   geom_errorbar(aes(ymin=pct_mean_low, ymax= pct_mean_upp, width=0.2))+
   geom_line(group=1)+
   geom_text(aes(label=n_unweighted,x=nearest_health_care,y=23, fill=NULL)) +
+  scale_x_discrete(labels= c("< 15","15-30","30-60","60-90", ">90"))+
   scale_y_continuous()+
-  labs(x="Reported Travel Time",
+  labs(x="Reported Travel Time (minutes)",
        y="Remotely sensed walking time to healthcare facility (minutes)",
          title = "Do reported walking travel times to nearest healthcare facility correlate with remotely sensed travel time?",
        subtitle = "Northern Nigeria MSNA 2022",
-       caption = str_wrap("We see that the remotely sensed walking times to nearest health center do generally correlate with  HH reported travel times. However, RS calculations for HHs that reported over 15 minutes travel time do appear to be too low",180)
+       # caption = str_wrap("We see that the remotely sensed walking times to nearest health center do generally correlate with  HH reported travel times. However, RS calculations for HHs that reported over 15 minutes travel time do appear to be too low",180)
   )+
   theme_bw()+
   theme(
-    plot.caption = element_text(hjust = 0),
+    # axis.text.x = element_text(angle=45),
+    plot.caption = element_text(hjust = 0)
   )
 ```
 
 
-Does the distance corroborate with accessibility indicators? yes it does, but results are under estimated
+Next we try to understand if this distance relates to any services/access to services. The respondents were asked: "In the past 3 months, what difficulties, if any, were encountered when attempting to access health services or treatment for adults?" They were given a variety of `select_one` options including "No functional health facility nearby". Therefore, in Figure \@ref(fig:plot-travelTimevsBarrier) we then compare the mean walking time to nearest health facility (derived from RS) for HHs who listed this option against HHS who reported no barriers.
 
-```{r}
+We do see the expected relationship where HHs  reporting the distance as too far have a signifcantly higher travel time. However, it is only logical to assume that a difference in travel time of less than 10 minutes would not be driving this distinction between a healthcare facility being too far to access. Therefore, this also supports the finding derived from Figure \@ref(fig:plot-rsTravelDistReportDist) that RS derived travel times from the Oxford Malaria Project may be a decent proportional proxy, but drastically understimate the distance/travel time.
+
+
+```{r plot-travelTimevsBarrier, fig.cap = 'RS does corraborate, but the distances do appear underestimated', eval= T, echo=F, results="asis"}
 nga_svy$data_main |> 
   mutate(
     i.nearest_healthcare_barrier = case_when(
@@ -364,8 +459,7 @@ nga_svy$data_main |>
     labs(x="Barrier to accessing facility?",
        y="Remotely sensed walking time to healthcare facility (minutes)",
          title = "RS does indicate farther walking times for those reporting distance as a barrier to accessing healthcare",
-       subtitle = "Northern Nigeria MSNA 2022",
-       caption = str_wrap("RS does corraborate, but the distances do appear underestimated",180)
+       subtitle = "Northern Nigeria MSNA 2022"
   )+
   theme_bw()+
   theme(
@@ -376,9 +470,9 @@ nga_svy$data_main |>
 
 ### MSNI
 
-It looks like increased rainfall intensify associated with increased MSNI needs, but there is weird spatial element.
+It looks like increased rainfall intensify associated with increased MSNI needs, but the MSNI needs to be fleshed out further to make this meaningful.
 
-```{r}
+```{r, eval= T, echo=F, results="asis"}
 
 nga_svy$data_main |> 
    group_by(msni=as_factor(msni)) |> 
@@ -402,11 +496,65 @@ nga_svy$data_main |>
   theme_bw()
 ```
 
-
-
 ### Shocks
+
+```{r, eval =F, echo= F}
+nga_svy$data_main$variables$`diff_or_shocks/too_much_rain` |> janitor::tabyl()
+
+nga_svy$data_main |> 
+  group_by(`diff_or_shocks/drought`) |> 
+  summarise(
+    survey_mean()
+  )
+nga_svy$data_main |> 
+  group_by(`diff_or_shocks/too_much_rain`) |> 
+  summarise(
+    survey_mean()
+  )
+
+nga_svy$data_main |> 
+  group_by(`diff_or_shocks/un_pest`) |> 
+  summarise(
+    survey_mean()
+  )
+nga_svy$data_main |> 
+  group_by(`diff_or_shocks/unusual_high`) |> 
+  summarise(
+    survey_mean()
+  )
+```
+
+
+```{r eval = T, echo=F}
+pct_with_shock <- nga_svy$data_main |> 
+  filter(!is.na(diff_or_shocks)) |> 
+  mutate(had_shock =`diff_or_shocks/no_shocks`==F ) |> 
+  group_by(had_shock) |> 
+  summarise(
+    survey_mean(na.rm = T)
+  ) |> 
+  filter(had_shock) |> 
+  pull(coef)
+
+pct_with_shock <- round(pct_with_shock*100,0)
+
+
+```
+
+
+Reported shocks would be a logical aspect to explore with remote sensing. Respondents were asked "Did your household experience any difficulties or shocks over the course of the past 6 months?" and then given list of `select multiple` option choices which included the following options that would be interesting to relate to natural phenomenon: 
+
+- Drought/irregular rains prolonged dry spell
+- Too much rain, flooding
+- Livestock disease outbreak,
+- Unusually high level of crop pests and disease
+
+However, all of these shocks were reported in less that 0.01 % of the HHs and therefore not suitable for further analysis. Nonetheless, we  thought it could be interesting to look into shocks generally from the perspective of both socioeconomic status and food security. Respondents who reported a shock of some sort (`r pct_with_shock` %) were the asked does "Did the impact of shocks cause hunger in your household?" In Figure \@ref(fig:plot-shockVshungervsIncome) we plot the % of HHs who reported that the shock resulted in hunger in the HH against estimated income status. What we see is that while ~47 % of HHs reported shocks, those in the higher income groups were much less vulnerable and better abe to mitigate the affects.
+
+
  
-```{r}
+```{r plot-shockVshungervsIncome, fig.cap = 'Approximately 47 % of HHs reported a difficulties/shocks over the last 6 months, but HHs in higher income groups have increased resiliency\nand ability to absorb shocks and were less affected', eval= T, echo=F, results="asis"}
+
 nga_svy$data_main |> 
   filter(shock_impact_ability%in% c("yes","no")) |> 
   group_by(overall_income_estimate,shock_impact_ability) |> 
@@ -429,7 +577,7 @@ nga_svy$data_main |>
   labs(x="Estimated Income (last 30 days)",
        title = "HHs who reported shock: Did the impact of shocks cause hunger in your household?",
        subtitle = "Northern Nigeria MSNA 2022",
-       caption = "Approximately 12 % of HHs reported a difficulties/shocks over the last 6 months, but HHs in higher income groups have increased resiliency\nand ability to absorb shocks and were less affected"
+       # caption = "Approximately 12 % of HHs reported a difficulties/shocks over the last 6 months, but HHs in higher income groups have increased resiliency\nand ability to absorb shocks and were less affected"
        )+
   coord_flip()+
   theme_bw()+
@@ -439,8 +587,9 @@ nga_svy$data_main |>
   )
 ```
 
-generally true for both male and female hoh
-```{r}
+We see the same general trend (Figure \@ref(fig:plot-shockVshungervsIncomeGender)) for both female headed households with female headed households more commonly reporting hunger as a result of the shock.
+
+```{r plot-shockVshungervsIncomeGender, fig.cap='with the added gender of head of household we see the same general trend that higher income groups are better able to absorb the shocks, with female head of households generally reporting higher rates of hunger due to the shock', eval= T, echo=F, results="asis"}
 nga_svy$data_main |> 
   filter(shock_impact_ability%in% c("yes","no")) |> 
   group_by(overall_income_estimate,gender_hoh,shock_impact_ability) |> 
@@ -458,8 +607,7 @@ nga_svy$data_main |>
     )+
   labs(x="Estimated Income (last 30 days)",
        title = "HHs who reported shock: Did the impact of shocks cause hunger in your household?",
-       subtitle = "Northern Nigeria MSNA 2022",
-       caption = "Approximately 12 % of HHs reported a difficulties/shocks over the last 6 months, but HHs in higher income groups have increased resiliency\nand ability to absorb shocks and were less affected"
+       subtitle = "Northern Nigeria MSNA 2022"
        )+
   coord_flip()+
   theme_bw()+
@@ -470,11 +618,34 @@ nga_svy$data_main |>
 
 ```
 
-## Colombia
+## Colombia {#colombia-results}
+
+Theme of remoteness & urban-rural divide \@ref(fig:plot-colTravelTimeVsMsni).
+
+```{r plot-colTravelTimeVsMsni,fig.cap='RS derived walking time to nearest health center vs MSNI',echo=F, eval = T, results= "asis"}
+knitr::include_graphics(here::here("man/figures/col_oxford_walking_travel_time_vs_msni_JM.PNG"))
+```
 
 
+## Discussion of results
 
-## Methodology
+Through this very light preliminary analysis some themes, questions, and recommendations have emerged
 
-RS indicators were made an extracted using GEE. This work is contained in the `{surveyGEER}` repository. Generally the indicators were extracted at the pixel level. Temporal RS data sources with longer timelines were typically preferred over those with shorter time lines so that pixel-values could be normalized to standard scores and indices such as percent mean/median could be constructed.
+- vegetative health anomaly does appear to have a slight impact
+  + the reasons remain unclear - is it due to harvest or livelihood access. We also cannot rule out other factors and the affects of spatial auto-correlation
+  + **Focal Window & Urban Masking** - this pre-processing step appears to be an important one and could have dramatic affects on relationships discovered. It is recommended that we add an additional urban raster dilation step prior to masking. The ideal size or method to calculate the size of the focal window and dilation are unclear and need to be explored further.
+- rainfall/rainfall intensity
+  + there does appear to be some relationship to the MSNI and income generally, but cause is unclear. Is it due to impacts of flooding on harvest/infrastructure, or loss of livelihood, confounding factors + spatial auto-correlation. More research is needed
+- Urbanization and remoteness
+  + We do see a relationship in between urbanization and remoteness with both the NGA HH income estimate and Colombia MSNI. This is both interesting and logical and deserves further research it also supports the idea of defining urban-rural in assessment design stages.
+  + Oxford travel time to nearest health facility raster does seem to serve as some sort of proxy for urbanization. In NW NGA the travel times appear to be vastly underestimated, but they could be proportional. Nonetheless this layer does show promise as useful input for both assessment design and analysis. It is recommended that we contact the authors and have a discussion regarding our results
+
+  
+## Limitations/challenges {#analysis-limitations}
+
+- Getting inputs to parameterize optimal RS variables from teams was a challenge
+- Analyzing HH datasets with RS variables should be done by analysts in country with expertise in the context and familiarity with tools/assessment design. We loose a great deal of value and confidence in the analysis when done externally.
+- Finding time for country teams to collaborate and take forward analysis.
+
+
 

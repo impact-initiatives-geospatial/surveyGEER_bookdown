@@ -10,12 +10,12 @@ knitr::opts_chunk$set(
 
 
 ```{r ken_rain_hide_setup,include=F, eval=T }
-library(surveyGEER)
+# library(surveyGEER)
 library(tidyverse, quietly)
-library(tidyrgee, quietly)
-library(rgee, quietly)
+# library(tidyrgee, quietly)
+# library(rgee, quietly)
 library(sf, quietly)
-library(lubridate, quietly)
+library(lubridate, quietly=T)
 ```
 
 # Graphing Rainy Season Delay Compared to Historical

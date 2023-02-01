@@ -1,5 +1,7 @@
 
-# Intro & Overview
+# Introduction
+
+## Overview
 
 This document attempts to describe some of the global approaches done by IMPACT-Initiatives to integrate remote sensing (RS) techniques into analyses and products. IMPACT/REACH has been rapidly expanding its RS portfolio and various country teams are increasingly integrating RS into their products/ & analyses. This document does not dive into all of the  work being done by individual country teams, but rather focuses on global approaches and, in particular, the integration of RS into analysis of humanitarian needs assessments.
 
@@ -8,14 +10,9 @@ The book describes a methodology developed for integrating remote sensing into h
 `{surveyGEER}` is a project that was developed as an R package which hosts a variety of tools, templates, and even data processing pipelines. It was named after the initial intent to create methods to integrate analyses of HH survey data with remote sensing using Google Earth Engine (GEE) remote sensing in R. In actuality the package does not contain any processes or functions for analyzing complex survey data, but rather focuses on the remote sensing component and methods to bring the remote sensing sources directly into HH data for downstream analysis. 
 
 
-this document is organized into 3 main sections
-
-- Bringing RS to Survey Data
-- Case Studies/Templates
-
 ## Current State of Work
 
-### Bringing RS into humanitarian assessments
+### Bringing RS into humanitarian assessments {#current-work-status-assessment}
 
 A key objective of this work was to explore a methodology for integrating remote sensing into assessment data sets. A methodology was developed for both household  and key informant (KI) level assessments. However, house hold level was the primary focus of this work. Remote sensing derived metrics/indicators were extracted into the the data sets of 6 REACH Multi-Sectoral Needs Assessments (MSNAs) and 4 KI level assessments that were part of the Humanitarian Situation Monitoring (HSM) validation study. The assessments included:
 
